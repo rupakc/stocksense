@@ -1,0 +1,29 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - backend_models:/app/models
+      - backend_db:/app/data
+    environment:
+      - ENV=development
+      - DEBUG=true
+      - DATABASE_URL=sqlite+aiosqlite:///./data/stocksense.db
+    develop:
+      watch:
+        - action: sync
+          path: ./backend/app
+          target: /app/app
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  backend_models:
+  backend_db:

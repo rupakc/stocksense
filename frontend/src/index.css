@@ -1,0 +1,106 @@
+@import "tailwindcss";
+
+@theme {
+  /* Surfaces */
+  --color-surface:      #f1f5f9;
+  --color-card:         #ffffff;
+  --color-card-hover:   #f8fafc;
+  --color-border:       #e2e8f0;
+
+  /* Brand */
+  --color-primary:      #6366f1;
+  --color-primary-dim:  #4f46e5;
+
+  /* Semantic */
+  --color-bullish:      #059669;
+  --color-bearish:      #e11d48;
+  --color-warning:      #d97706;
+
+  /* Text */
+  --color-muted:        #94a3b8;
+  --color-subtle:       #64748b;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: var(--color-surface);
+  color: #0f172a;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  min-height: 100vh;
+}
+
+::-webkit-scrollbar        { width: 5px; height: 5px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: #cbd5e1; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+button, a { transition: color 0.15s, background-color 0.15s, border-color 0.15s, opacity 0.15s; }
+
+/* ── Dark mode overrides ────────────────────────────────────────────────────── */
+.dark body {
+  background-color: #0f172a;
+  color: #e2e8f0;
+}
+
+.dark .bg-white { background-color: #1e293b !important; }
+.dark .bg-slate-50 { background-color: #0f172a !important; }
+.dark .bg-slate-100 { background-color: #1e293b !important; }
+.dark .bg-white\/90 { background-color: rgba(30, 41, 59, 0.95) !important; }
+
+.dark .border-slate-200 { border-color: #334155 !important; }
+.dark .border-slate-100 { border-color: #1e293b !important; }
+
+.dark .text-slate-900 { color: #f1f5f9 !important; }
+.dark .text-slate-800 { color: #e2e8f0 !important; }
+.dark .text-slate-700 { color: #cbd5e1 !important; }
+.dark .text-slate-600 { color: #94a3b8 !important; }
+.dark .text-slate-500 { color: #64748b !important; }
+.dark .text-slate-400 { color: #475569 !important; }
+
+.dark .hover\:bg-slate-50:hover { background-color: #334155 !important; }
+.dark .hover\:bg-slate-100:hover { background-color: #334155 !important; }
+.dark .hover\:text-slate-800:hover { color: #f1f5f9 !important; }
+
+.dark .bg-indigo-50 { background-color: rgba(99, 102, 241, 0.15) !important; }
+.dark .bg-indigo-100 { background-color: rgba(99, 102, 241, 0.2) !important; }
+.dark .bg-emerald-50 { background-color: rgba(16, 185, 129, 0.15) !important; }
+.dark .bg-rose-50 { background-color: rgba(239, 68, 68, 0.15) !important; }
+.dark .bg-amber-50 { background-color: rgba(245, 158, 11, 0.15) !important; }
+.dark .bg-purple-50 { background-color: rgba(139, 92, 246, 0.15) !important; }
+
+.dark .shadow-sm { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important; }
+.dark .shadow-lg { box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4) !important; }
+
+.dark input, .dark select {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+
+.dark input::placeholder { color: #475569 !important; }
+
+.dark .animate-pulse {
+  background-color: #334155 !important;
+}
+
+.dark ::-webkit-scrollbar-thumb { background: #475569; }
+.dark ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+/* ── Toast slide-in animation ──────────────────────────────────────────────── */
+@keyframes slide-in {
+  from { opacity: 0; transform: translateX(100%); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.animate-slide-in { animation: slide-in 0.25s ease-out; }

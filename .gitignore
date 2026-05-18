@@ -1,0 +1,54 @@
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Python
+.venv/
+venv/
+env/
+*.pyc
+*.pyo
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Database
+*.db
+*.db-wal
+*.db-shm
+
+# Logs
+.logs/
+*.log
+
+# Test artifacts
+test-results/
+playwright-report/
+
+# Archives / large binaries
+*.tar.gz
+
+# Build artifacts
+build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# PIDs
+*.pid
