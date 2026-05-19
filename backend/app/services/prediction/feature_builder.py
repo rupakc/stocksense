@@ -30,6 +30,7 @@ transform is applied to the future dataframe at inference time.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -73,9 +74,6 @@ US_MACRO_TICKERS: dict[str, str] = {
     "dxy":        "DX-Y.NYB",   # USD index — global risk appetite
 }
 
-MACRO_TICKERS = INDIAN_MACRO_TICKERS
-
-
 def _macro_tickers_for_symbol(symbol: str) -> dict[str, str]:
     if symbol.endswith((".NS", ".BO")):
         return INDIAN_MACRO_TICKERS
@@ -100,14 +98,50 @@ class FeatureBuilder:
     # ------------------------------------------------------------------
 
     async def build(self, symbol: str, db: AsyncSession) -> pd.DataFrame:
-        """Return a merged, normalised daily DataFrame ready for Prophet."""
+        """Return a merged, normalised daily DataFrame ready for training.
+
+        Fits the z-score scaler on this dataset — call this during training only.
+        For inference on a saved model, use build_for_inference() instead.
+        """
+        df = await self._assemble_raw(symbol, db)
+        if df.empty:
+            return df
+        feature_cols = self._feature_columns(df)
+        df = self._normalise(df, feature_cols, fit=True)
+        df = df.dropna(subset=["y"])
+        logger.info(
+            f"[FeatureBuilder] {symbol}: {len(df)} rows, "
+            f"{len(feature_cols)} features: {feature_cols}"
+        )
+        return df
+
+    async def build_for_inference(self, symbol: str, db: AsyncSession) -> pd.DataFrame:
+        """Return a normalised DataFrame using the saved scaler stats (no refitting).
+
+        Always use this at inference time so that the normalization exactly matches
+        what the model was trained on.
+        """
+        df = await self._assemble_raw(symbol, db)
+        if df.empty:
+            return df
+        feature_cols = self._feature_columns(df)
+        df = self._normalise(df, feature_cols, fit=False)
+        df = df.dropna(subset=["y"])
+        return df
+
+    async def _assemble_raw(self, symbol: str, db: AsyncSession) -> pd.DataFrame:
+        """Merge all signal layers into one un-normalised DataFrame.
+
+        Shared by build() and build_for_inference() so all feature engineering
+        logic lives in exactly one place.
+        """
         price_df = await self._load_price_features(symbol, db)
         if price_df.empty:
             return pd.DataFrame()
 
         sentiment_df = await self._load_sentiment_features(symbol, db, price_df["ds"])
         macro_tickers = _macro_tickers_for_symbol(symbol)
-        macro_df = self._load_macro_features(price_df["ds"], macro_tickers)
+        macro_df = await asyncio.to_thread(self._load_macro_features, price_df["ds"], macro_tickers)
 
         df = price_df.copy()
 
@@ -129,14 +163,6 @@ class FeatureBuilder:
             for col in macro_tickers:
                 df[col] = 0.0
 
-        feature_cols = self._feature_columns(df)
-        df = self._normalise(df, feature_cols, fit=True)
-        df = df.dropna(subset=["y"])
-
-        logger.info(
-            f"[FeatureBuilder] {symbol}: {len(df)} rows, "
-            f"{len(feature_cols)} features: {feature_cols}"
-        )
         return df
 
     def get_future_features(self, train_df: pd.DataFrame, horizon_days: int) -> pd.DataFrame:
@@ -356,7 +382,7 @@ class FeatureBuilder:
 
     def _load_macro_features(self, date_index: pd.Series,
                              macro_tickers: dict[str, str] | None = None) -> pd.DataFrame:
-        tickers = macro_tickers or MACRO_TICKERS
+        tickers = macro_tickers or INDIAN_MACRO_TICKERS
         start = (date_index.min() - timedelta(days=10)).strftime("%Y-%m-%d")
         end   = (date_index.max() + timedelta(days=5)).strftime("%Y-%m-%d")
 

@@ -1,0 +1,2 @@
+# Backend Cloud Run intentionally has allUsers invoker — it is a public-facing API
+AVD-GCP-0006

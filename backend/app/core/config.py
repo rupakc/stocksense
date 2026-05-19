@@ -1,3 +1,5 @@
+import os
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -48,6 +50,25 @@ class Settings(BaseSettings):
 
     # Model storage
     model_dir: str = "models/saved"
+
+    # GCS persistence (production only; empty = disabled in local dev)
+    gcs_bucket: str = ""
+    gcs_backup_interval_seconds: int = 900  # 15-minute periodic DB backup
+
+    @property
+    def db_file_path(self) -> str:
+        """Absolute filesystem path for the SQLite database file.
+
+        Derived from DATABASE_URL; returns '' for non-SQLite databases so
+        callers can check truthiness before attempting file-level operations.
+        """
+        import re
+        if "sqlite" not in self.database_url:
+            return ""
+        m = re.search(r"sqlite[^:]*:///(.+)", self.database_url)
+        if not m:
+            return ""
+        return os.path.abspath(m.group(1))  # handles both relative & absolute paths
 
     # Default watchlist
     default_symbols: list[str] = [

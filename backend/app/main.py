@@ -10,11 +10,12 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
-from app.api.deps import get_current_user
-from app.api.routes import auth, stocks, predictions, news, economic, portfolio, strategies, screener, compare, tax, corporate_actions, alerts
+from app.api.deps import get_active_user
+from app.api.routes import auth, stocks, predictions, news, economic, portfolio, strategies, screener, compare, tax, corporate_actions, alerts, admin
 from app.api.routes.mf_overlap import router as mf_router
 from app.core.config import settings
 from app.db.database import AsyncSessionLocal, init_db
+from app.services.gcs_sync import init_gcs_sync
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,15 @@ if settings.jwt_secret_key == "CHANGE-ME-IN-ENV":
     )
 
 RETRAIN_INTERVAL = timedelta(hours=settings.prediction_max_age_hours)
+
+
+def _ensure_utc(dt: datetime) -> datetime:
+    """Return a UTC-aware datetime, attaching UTC if the value is naive.
+
+    SQLite stores datetimes without timezone info; this normalises them so
+    comparisons against timezone.utc cutoffs are always safe.
+    """
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
 
 
 async def _daily_training_loop() -> None:
@@ -44,8 +54,10 @@ _TRAIN_TIMEOUT = 30 * 60  # 30 minutes
 
 
 async def _retrain_stale_symbols() -> None:
-    from sqlalchemy import select
+    from sqlalchemy import func, select
     from app.db.models import PredictionResult, WatchedSymbol
+
+    cutoff = datetime.now(timezone.utc) - RETRAIN_INTERVAL
 
     async with AsyncSessionLocal() as db:
         result = await db.execute(
@@ -53,32 +65,25 @@ async def _retrain_stale_symbols() -> None:
         )
         symbols = [row[0] for row in result.all()]
 
-    if not symbols:
-        return
+        if not symbols:
+            return
 
-    cutoff = datetime.now(timezone.utc) - RETRAIN_INTERVAL
-    stale_symbols = []
-    for symbol in symbols:
-        try:
-            async with AsyncSessionLocal() as db:
-                result = await db.execute(
-                    select(PredictionResult.trained_at)
-                    .where(PredictionResult.symbol == symbol)
-                    .order_by(PredictionResult.trained_at.desc())
-                    .limit(1)
-                )
-                last_trained = result.scalar_one_or_none()
+        # Fetch latest trained_at per symbol in one batch query
+        subq = (
+            select(
+                PredictionResult.symbol,
+                func.max(PredictionResult.trained_at).label("last_trained"),
+            )
+            .group_by(PredictionResult.symbol)
+            .subquery()
+        )
+        trained_result = await db.execute(select(subq))
+        trained_map = {r.symbol: r.last_trained for r in trained_result.all()}
 
-            if last_trained:
-                if last_trained.tzinfo is None:
-                    from datetime import timezone as _tz
-                    last_trained = last_trained.replace(tzinfo=_tz.utc)
-                if last_trained >= cutoff:
-                    continue
-
-            stale_symbols.append(symbol)
-        except Exception as exc:
-            logger.error(f"[scheduler] Failed checking {symbol}: {exc}", exc_info=True)
+    stale_symbols = [
+        s for s in symbols
+        if not trained_map.get(s) or _ensure_utc(trained_map[s]) < cutoff
+    ]
 
     if not stale_symbols:
         return
@@ -99,12 +104,83 @@ async def _retrain_stale_symbols() -> None:
     await asyncio.gather(*[_train_limited(s) for s in stale_symbols])
 
 
+async def _periodic_db_backup(gcs, db_path: str) -> None:
+    """Upload a consistent DB snapshot to GCS every gcs_backup_interval_seconds."""
+    while True:
+        await asyncio.sleep(settings.gcs_backup_interval_seconds)
+        await asyncio.to_thread(gcs.backup_db, db_path)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    gcs = init_gcs_sync(settings.gcs_bucket)
+    db_path = settings.db_file_path
+
+    # 1. Restore DB from GCS before init_db() so existing tables/data are preserved
+    if db_path:
+        await asyncio.to_thread(gcs.download_db, db_path)
+
+    # 2. Initialise schema (creates tables only if they don't already exist)
     await init_db()
-    task = asyncio.create_task(_daily_training_loop())
+    await _seed_admin_user()
+
+    # 3. Restore trained models from GCS
+    await asyncio.to_thread(gcs.download_models, settings.model_dir)
+
+    # 4. Start background tasks
+    training_task = asyncio.create_task(_daily_training_loop())
+    # Only run DB backup loop when GCS is configured — avoids pointless no-op wakeups
+    backup_task = (
+        asyncio.create_task(_periodic_db_backup(gcs, db_path))
+        if db_path and gcs.enabled
+        else None
+    )
+
     yield
-    task.cancel()
+
+    # 5. Graceful shutdown: final DB backup before the container exits
+    training_task.cancel()
+    if backup_task:
+        backup_task.cancel()
+    if db_path:
+        await asyncio.to_thread(gcs.backup_db, db_path)
+
+
+async def _seed_admin_user() -> None:
+    """Ensure at least one admin account exists.
+
+    If the default user was already seeded by _seed_default_user but without
+    is_admin=True, promote them rather than creating a duplicate.
+    """
+    from sqlalchemy import select
+    from app.db.models import User
+    from app.core.security import hash_password
+
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(select(User).where(User.is_admin == True).limit(1))  # noqa: E712
+        if result.scalar_one_or_none():
+            return
+
+        # No admin yet — promote or create the default account
+        existing = await db.execute(select(User).where(User.username == settings.default_username))
+        user = existing.scalar_one_or_none()
+        if user:
+            user.is_admin = True
+            user.is_first_login = False
+            user.is_active = True
+            await db.commit()
+            logger.info(f"Promoted '{settings.default_username}' to admin")
+        else:
+            admin_user = User(
+                username=settings.default_username,
+                hashed_password=hash_password(settings.default_password),
+                is_admin=True,
+                is_first_login=False,
+                is_active=True,
+            )
+            db.add(admin_user)
+            await db.commit()
+            logger.info(f"Seeded admin user '{settings.default_username}'")
 
 
 app = FastAPI(
@@ -152,8 +228,8 @@ app.add_middleware(
 # Unprotected routes
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 
-# Protected routes — require valid JWT
-protected = APIRouter(prefix="/api", dependencies=[Depends(get_current_user)])
+# Protected routes — require valid JWT + active account
+protected = APIRouter(prefix="/api", dependencies=[Depends(get_active_user)])
 protected.include_router(stocks.router, prefix="/stocks", tags=["stocks"])
 protected.include_router(predictions.router, prefix="/predictions", tags=["predictions"])
 protected.include_router(news.router, prefix="/news", tags=["news"])
@@ -166,6 +242,7 @@ protected.include_router(tax.router, prefix="/tax", tags=["tax"])
 protected.include_router(corporate_actions.router, prefix="/corporate-actions", tags=["corporate-actions"])
 protected.include_router(mf_router, prefix="/mf", tags=["mutual-funds"])
 protected.include_router(alerts.router, prefix="/alerts", tags=["alerts"])
+protected.include_router(admin.router, prefix="/admin", tags=["admin"])
 app.include_router(protected)
 
 

@@ -1,0 +1,145 @@
+name: CI
+
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+        working-directory: backend
+      - name: Ruff lint
+        run: ruff check app/
+        working-directory: backend
+      - name: Ruff format check
+        run: ruff format --check app/
+        working-directory: backend
+
+  test-backend:
+    runs-on: ubuntu-latest
+    if: ${{ hashFiles('backend/tests/*.py') != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+        working-directory: backend
+      - name: Run tests
+        run: pytest tests/ -v --tb=short
+        working-directory: backend
+        env:
+          ENV: test
+          DATABASE_URL: sqlite+aiosqlite:////tmp/test-stocksense.db
+          JWT_SECRET_KEY: test-jwt-secret-key
+          DEFAULT_PASSWORD: test-admin-pw
+
+  lint-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20", cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - name: Install dependencies
+        run: npm ci
+        working-directory: frontend
+      - name: ESLint
+        run: npm run lint
+        working-directory: frontend
+
+  build-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20", cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - name: Install dependencies
+        run: npm ci
+        working-directory: frontend
+      - name: Build
+        run: npm run build
+        working-directory: frontend
+
+  security-backend:
+    name: Backend Security (Bandit + pip-audit)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies + security tools
+        run: pip install -e ".[dev]"
+        working-directory: backend
+      - name: Bandit SAST
+        run: bandit -r app/ -ll -ii
+        working-directory: backend
+      - name: pip-audit
+        run: pip-audit --local --desc on
+        working-directory: backend
+
+  security-frontend:
+    name: Frontend Security (npm audit)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+        working-directory: frontend
+      - name: npm audit (production deps only)
+        run: npm audit --audit-level=moderate --omit=dev
+        working-directory: frontend
+
+  security-docker:
+    name: Dockerfile Lint (Hadolint)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Hadolint — backend
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: backend/Dockerfile
+          config: .hadolint.yaml
+          format: sarif
+          output-file: hadolint-backend.sarif
+          failure-threshold: warning
+      - name: Hadolint — frontend
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: frontend/Dockerfile
+          config: .hadolint.yaml
+          format: sarif
+          output-file: hadolint-frontend.sarif
+          failure-threshold: warning
+      - name: Upload SARIF (backend)
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: hadolint-backend.sarif
+          category: hadolint-backend
+      - name: Upload SARIF (frontend)
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: hadolint-frontend.sarif
+          category: hadolint-frontend

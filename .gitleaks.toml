@@ -1,0 +1,12 @@
+[allowlist]
+  description = "Known placeholder strings in Pydantic settings defaults and CI test env vars"
+  regexes = [
+    '''CHANGE-ME-IN-ENV''',
+    '''Change-Me-123!''',
+    '''test-jwt-secret-key''',
+    '''test-admin-pw''',
+  ]
+  paths = [
+    '''backend/app/core/config\.py''',
+    '''\.github/workflows/ci\.yml''',
+  ]

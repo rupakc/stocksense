@@ -17,6 +17,10 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(50), unique=True, index=True)
     hashed_password: Mapped[str] = mapped_column(String(128))
     preferred_exchange: Mapped[str] = mapped_column(String(10), default="ALL")
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    email: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
+    is_first_login: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     watchlist: Mapped[list["WatchedSymbol"]] = relationship(back_populates="user")

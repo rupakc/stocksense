@@ -33,9 +33,16 @@ dist/
 # Test artifacts
 test-results/
 playwright-report/
+frontend/e2e/.auth-token.json
 
 # Archives / large binaries
 *.tar.gz
+
+# ML models — stored in GCS, not git
+backend/models/saved/
+
+# Playwright MCP artifacts
+.playwright-mcp/
 
 # Build artifacts
 build/

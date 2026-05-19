@@ -1,6 +1,7 @@
 import logging
 
 from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
@@ -23,12 +24,12 @@ async def init_db():
         await conn.execute(text("PRAGMA journal_mode=WAL"))
 
     await _migrate_user_id_column()
-    await _migrate_preferred_exchange_column()
+    await _migrate_users_columns()
     await _seed_default_user()
 
 
 async def _migrate_user_id_column():
-    """Add user_id column to watched_symbols if it doesn't exist (dev migration)."""
+    """Add user_id column to watched_symbols if it doesn't exist."""
     async with engine.begin() as conn:
         try:
             result = await conn.execute(text("PRAGMA table_info(watched_symbols)"))
@@ -38,23 +39,45 @@ async def _migrate_user_id_column():
                     "ALTER TABLE watched_symbols ADD COLUMN user_id INTEGER REFERENCES users(id)"
                 ))
                 logger.info("[init] Added user_id column to watched_symbols")
-        except Exception:
-            pass  # table doesn't exist yet or non-SQLite — create_all handles it
+        except OperationalError:
+            pass  # table doesn't exist yet — create_all handles it
 
 
-async def _migrate_preferred_exchange_column():
-    """Add preferred_exchange column to users if it doesn't exist."""
+async def _migrate_users_columns():
+    """Add any missing columns to the users table — safe to call repeatedly.
+
+    Each column is added in its own statement so one failure doesn't prevent others.
+    SQLite does not support UNIQUE constraints in ALTER TABLE ADD COLUMN; the email
+    uniqueness is enforced via a partial index created separately.
+    """
+    new_columns = [
+        ("preferred_exchange", "VARCHAR(10) DEFAULT 'ALL'"),
+        ("is_admin",       "BOOLEAN NOT NULL DEFAULT 0"),
+        ("is_active",      "BOOLEAN NOT NULL DEFAULT 1"),
+        ("email",          "VARCHAR(255)"),   # UNIQUE enforced below via partial index
+        ("is_first_login", "BOOLEAN NOT NULL DEFAULT 1"),
+    ]
     async with engine.begin() as conn:
-        try:
-            result = await conn.execute(text("PRAGMA table_info(users)"))
-            cols = [row[1] for row in result.fetchall()]
-            if "preferred_exchange" not in cols:
-                await conn.execute(text(
-                    "ALTER TABLE users ADD COLUMN preferred_exchange VARCHAR(10) DEFAULT 'ALL'"
-                ))
-                logger.info("[init] Added preferred_exchange column to users")
-        except Exception:
-            pass
+        result = await conn.execute(text("PRAGMA table_info(users)"))
+        existing = {row[1] for row in result.fetchall()}
+        if not existing:
+            return  # table not yet created — create_all handles it
+
+        for col_name, col_def in new_columns:
+            if col_name not in existing:
+                try:
+                    await conn.execute(text(
+                        f"ALTER TABLE users ADD COLUMN {col_name} {col_def}"
+                    ))
+                    logger.info(f"[init] Added column '{col_name}' to users")
+                except OperationalError as exc:
+                    logger.warning(f"[init] Could not add '{col_name}': {exc}")
+
+        # Ensure the email unique index exists (partial — NULL emails are not unique)
+        await conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_email "
+            "ON users(email) WHERE email IS NOT NULL"
+        ))
 
 
 async def _seed_default_user():

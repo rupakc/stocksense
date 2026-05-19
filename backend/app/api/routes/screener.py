@@ -82,8 +82,56 @@ def _get_stock_metrics(symbol: str) -> dict | None:
         return None
 
 
+# Top NASDAQ stocks ordered by market cap — used as the screener universe.
+# The full live symbol list (symbol_search.py) is used for search/add, where
+# alphabetical order is fine since the user types a query to narrow it down.
+_TOP_NASDAQ_SYMBOLS = [
+    "AAPL", "MSFT", "NVDA", "AMZN", "META", "TSLA", "GOOGL", "GOOG",
+    "AVGO", "COST", "NFLX", "AMD", "ADBE", "PEP", "CSCO", "INTC",
+    "TMUS", "CMCSA", "INTU", "TXN", "QCOM", "AMGN", "ISRG", "AMAT",
+    "BKNG", "LRCX", "VRTX", "PANW", "ADP", "REGN", "SBUX", "MU",
+    "MDLZ", "KLAC", "SNPS", "CDNS", "MELI", "CRWD", "PYPL", "ORLY",
+    "MAR", "ABNB", "FTNT", "CTAS", "DASH", "WDAY", "CEG", "MRVL",
+    "TTD", "DXCM", "ODFL", "PCAR", "MNST", "IDXX", "FAST", "KDP",
+    "EXC", "GEHC", "EA", "VRSK", "CTSH", "XEL", "ON", "DDOG",
+    "ANSS", "ZS", "TEAM", "CDW", "BIIB", "ILMN", "SPLK", "SIRI",
+    "JD", "PDD", "BIDU", "NTES", "MCHP", "LULU", "ROST", "PAYX",
+    "KHC", "DLTR", "BKR", "FANG", "AEP", "WBA", "COIN", "RIVN",
+    "PLTR", "SNOW", "NET", "ROKU", "ZM", "OKTA", "SHOP", "UBER",
+    "SNAP", "SPOT",
+]
+
+
+def _build_scan_universe(exchange: str) -> list[str]:
+    """Return the screener symbol universe for a given exchange.
+
+    The NASDAQ universe uses a market-cap-ordered curated list so the screener
+    surfaces large/mid-caps rather than obscure alphabetical small-caps.
+    The full live NASDAQ list (symbol_search.py) is still used for search.
+
+    NSE    → top 100 NSE equities with .NS suffix
+    BSE    → top 100 NSE equities mapped to .BO suffix
+    NASDAQ → top 100 NASDAQ large/mid-caps (no suffix)
+    ALL    → 60 NSE + 40 NASDAQ for a balanced cross-market view
+    """
+    from app.services.market_data.nse_symbols import get_all_symbols
+
+    nse_data = get_all_symbols()
+    nse_syms = [f"{d['symbol']}.NS" for d in nse_data] if nse_data else [f"{s}.NS" for s in _TOP_NSE_SYMBOLS]
+
+    if exchange == "NASDAQ":
+        return list(_TOP_NASDAQ_SYMBOLS)
+    if exchange == "BSE":
+        return [s.replace(".NS", ".BO") for s in nse_syms[:100]]
+    if exchange == "NSE":
+        return nse_syms[:100]
+    # ALL — balanced cross-market sample
+    return nse_syms[:60] + list(_TOP_NASDAQ_SYMBOLS[:40])
+
+
 @router.get("/scan")
 async def screen_stocks(
+    exchange: str = Query(default="ALL", description="Filter universe: ALL, NSE, BSE, or NASDAQ"),
     sector: str | None = Query(default=None),
     min_market_cap: float | None = Query(default=None),
     max_pe: float | None = Query(default=None),
@@ -93,26 +141,18 @@ async def screen_stocks(
     near_52w_low_pct: float | None = Query(default=None, description="Within X% of 52-week low"),
     near_52w_high_pct: float | None = Query(default=None, description="Within X% of 52-week high"),
     sort_by: str = Query(default="market_cap"),
-    limit: int = Query(default=30, le=50),
+    limit: int = Query(default=30, le=100),
     current_user: User = Depends(get_current_user),
 ):
-    """Screen stocks by fundamental criteria. Supports NSE and NASDAQ."""
-    from app.services.market_data.nse_symbols import get_all_symbols
-    from app.services.market_data.symbol_search import _get_nasdaq_symbols
-
-    nse_data = get_all_symbols()
-    nse_syms = [f"{d['symbol']}.NS" for d in nse_data] if nse_data else [f"{s}.NS" for s in _TOP_NSE_SYMBOLS]
-    nasdaq_syms = [d["symbol"] for d in _get_nasdaq_symbols()]
-
-    symbols_to_scan = (nse_syms[:80] + nasdaq_syms[:20])
+    """Screen stocks by fundamental criteria across NSE, BSE, and NASDAQ."""
+    symbols_to_scan = _build_scan_universe(exchange.upper())
 
     # Fetch metrics in parallel with concurrency limit
-    loop = asyncio.get_event_loop()
     sem = asyncio.Semaphore(10)
 
     async def fetch_limited(sym):
         async with sem:
-            return await loop.run_in_executor(None, _get_stock_metrics, sym)
+            return await asyncio.to_thread(_get_stock_metrics, sym)
 
     results = await asyncio.gather(*(fetch_limited(s) for s in symbols_to_scan))
     stocks = [r for r in results if r]

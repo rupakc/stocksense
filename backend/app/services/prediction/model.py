@@ -21,12 +21,14 @@ All regressors are z-score normalised.  Future values:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import re
 from datetime import datetime, timezone
 
 import joblib
+import numpy as np
 
 import pandas as pd
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -56,15 +58,16 @@ class PredictionService:
         self,
         symbol: str,
         horizon_days: int,
-        model_name: str,
         db: AsyncSession,
     ):
         builder = FeatureBuilder()
         df = await builder.build(symbol, db)
 
         if len(df) < 60:
-            logger.warning(f"Not enough data to train for {symbol} (got {len(df)} rows)")
-            return None
+            raise ValueError(
+                f"Insufficient training data for {symbol}: "
+                f"{len(df)} rows available, 60 minimum required"
+            )
 
         feature_cols = builder._feature_columns(df)
         logger.info(
@@ -79,10 +82,14 @@ class PredictionService:
         final_predictions = prophet_predictions
         final_metrics = prophet_metrics
         model_name = "prophet-multisignal"
+        gbm_model = None
+        saved_blend_info = None
 
         try:
-            gbm_model, gbm_preds, gbm_metrics = self._train_gbm(df, feature_cols, horizon_days)
-            final_predictions, blend_info = self._blend_predictions(
+            gbm_model, gbm_preds, gbm_metrics = self._train_gbm(
+                df, feature_cols, horizon_days, builder
+            )
+            final_predictions, saved_blend_info = self._blend_predictions(
                 prophet_predictions, gbm_preds,
                 prophet_metrics["mape"], gbm_metrics["mape"],
             )
@@ -90,19 +97,39 @@ class PredictionService:
                 **prophet_metrics,
                 "gbm_mae": gbm_metrics["mae"],
                 "gbm_mape": gbm_metrics["mape"],
-                **blend_info,
+                **saved_blend_info,
             }
-            blended_mape = min(prophet_metrics["mape"], gbm_metrics["mape"])
+            blended_mape = (
+                prophet_metrics["mape"] * saved_blend_info["prophet_weight"]
+                + gbm_metrics["mape"] * saved_blend_info["gbm_weight"]
+            )
             final_metrics["mape"] = round(blended_mape, 4)
             model_name = "ensemble-prophet-gbm"
-            logger.info(f"Ensemble trained for {symbol}: Prophet MAPE={prophet_metrics['mape']:.2f}%, GBM MAPE={gbm_metrics['mape']:.2f}%")
+            logger.info(
+                f"Ensemble trained for {symbol}: "
+                f"Prophet MAPE={prophet_metrics['mape']:.2f}%, "
+                f"GBM MAPE={gbm_metrics['mape']:.2f}%, "
+                f"Blended MAPE={blended_mape:.2f}%"
+            )
         except Exception as exc:
             logger.warning(f"GBM ensemble failed for {symbol}, using Prophet only: {exc}")
+            final_metrics["gbm_error"] = str(exc)
 
+        model_path = self._model_path(symbol)
         joblib.dump(
-            {"model": model, "builder": builder, "features": feature_cols},
-            self._model_path(symbol),
+            {
+                "model": model,
+                "gbm_model": gbm_model,
+                "blend_info": saved_blend_info,
+                "builder": builder,
+                "features": feature_cols,
+            },
+            model_path,
         )
+
+        # Persist to GCS immediately so the model survives a container restart
+        from app.services.gcs_sync import get_gcs_sync
+        await asyncio.to_thread(get_gcs_sync().upload_model, model_path)
 
         from app.db.models import PredictionResult
         record = PredictionResult(
@@ -154,7 +181,12 @@ class PredictionService:
     async def _predict_from_disk(
         self, symbol: str, horizon_days: int, db: AsyncSession
     ) -> dict | None:
-        """Load a saved model from disk and generate a fresh prediction."""
+        """Load a saved model from disk and generate a fresh prediction.
+
+        Uses build_for_inference() so all four feature layers (price, technical,
+        sentiment, macro) are recomputed with the training-time scaler stats,
+        keeping the feature distribution consistent with what the model was trained on.
+        """
         model_path = self._model_path(symbol)
         if not os.path.exists(model_path):
             return None
@@ -165,43 +197,76 @@ class PredictionService:
             builder = saved["builder"]
             feature_cols = saved["features"]
 
-            price_df = await builder._load_price_features(symbol, db)
-            if price_df.empty or len(price_df) < 30:
+            # Recompute all features with saved normalization; never re-fits the scaler
+            train_df = await builder.build_for_inference(symbol, db)
+            if train_df.empty or len(train_df) < 30:
                 return None
 
-            train_df = price_df[["ds", "y"]].copy()
+            # Pad any feature columns added after the model was saved
             for col in feature_cols:
-                if col in price_df.columns:
-                    train_df[col] = price_df[col]
-                else:
+                if col not in train_df.columns:
                     train_df[col] = 0.0
 
-            train_df = builder._normalise(train_df, feature_cols, fit=False)
             future = builder.get_future_features(train_df, horizon_days)
             forecast = model.predict(future)
 
             tail = forecast.tail(horizon_days)
-            predictions = [
-                {
-                    "date": row["ds"].strftime("%Y-%m-%d"),
-                    "predicted_close": round(row["yhat"], 2),
-                    "lower_bound": round(row["yhat_lower"], 2),
-                    "upper_bound": round(row["yhat_upper"], 2),
-                }
-                for _, row in tail.iterrows()
-            ]
+            gbm_model = saved.get("gbm_model")
+            blend_info = saved.get("blend_info")
 
-            logger.info(f"[disk-fallback] Generated prediction for {symbol} from saved model")
+            if gbm_model is not None and blend_info is not None:
+                try:
+                    future_X = future.tail(horizon_days)[feature_cols].fillna(0.0).values
+                    gbm_preds = [float(gbm_model.predict(r.reshape(1, -1))[0]) for r in future_X]
+                    w_p = blend_info["prophet_weight"]
+                    w_g = blend_info["gbm_weight"]
+                    predictions = [
+                        {
+                            "date": row["ds"].strftime("%Y-%m-%d"),
+                            "predicted_close": round(row["yhat"] * w_p + gbm_preds[i] * w_g, 2),
+                            "lower_bound": round(row["yhat_lower"], 2),
+                            "upper_bound": round(row["yhat_upper"], 2),
+                            "prophet_pred": round(row["yhat"], 2),
+                            "gbm_pred": round(gbm_preds[i], 2),
+                        }
+                        for i, (_, row) in enumerate(tail.iterrows())
+                    ]
+                    model_label = "ensemble-disk-fallback"
+                except Exception:
+                    predictions = [
+                        {
+                            "date": row["ds"].strftime("%Y-%m-%d"),
+                            "predicted_close": round(row["yhat"], 2),
+                            "lower_bound": round(row["yhat_lower"], 2),
+                            "upper_bound": round(row["yhat_upper"], 2),
+                        }
+                        for _, row in tail.iterrows()
+                    ]
+                    model_label = "prophet-disk-fallback"
+            else:
+                predictions = [
+                    {
+                        "date": row["ds"].strftime("%Y-%m-%d"),
+                        "predicted_close": round(row["yhat"], 2),
+                        "lower_bound": round(row["yhat_lower"], 2),
+                        "upper_bound": round(row["yhat_upper"], 2),
+                    }
+                    for _, row in tail.iterrows()
+                ]
+                model_label = "prophet-disk-fallback"
+
+            metrics = saved.get("metrics", {})
+            logger.info(f"[disk-fallback] Generated {model_label} prediction for {symbol}")
             return {
                 "symbol": symbol,
-                "model_name": "prophet-disk-fallback",
+                "model_name": model_label,
                 "trained_at": datetime.fromtimestamp(
                     os.path.getmtime(model_path), tz=timezone.utc
                 ),
                 "horizon_days": horizon_days,
                 "predictions": predictions,
-                "metrics": saved.get("metrics", {}),
-                "confidence": "medium",
+                "metrics": metrics,
+                "confidence": self._confidence(metrics.get("mape", 99)),
                 "features_used": feature_cols,
             }
         except Exception as exc:
@@ -249,7 +314,6 @@ class PredictionService:
 
         train_df = df[["ds", "y"] + feature_cols].copy()
 
-        # Walk-forward validation: hold out last 20% for metrics
         split = int(len(train_df) * 0.80)
         train_part = train_df.iloc[:split]
         test_part  = train_df.iloc[split:]
@@ -262,7 +326,10 @@ class PredictionService:
             test_forecast[["ds", "yhat"]], on="ds"
         ).dropna()
         mae  = float((merged["y"] - merged["yhat"]).abs().mean())
-        mape = float(((merged["y"] - merged["yhat"]).abs() / merged["y"]).mean() * 100)
+        mape = float(
+            ((merged["y"] - merged["yhat"]).abs()
+             / merged["y"].abs().clip(lower=1e-8)).mean() * 100
+        )
         rmse = float(((merged["y"] - merged["yhat"]) ** 2).mean() ** 0.5)
         metrics = {
             "mae":  round(mae,  4),
@@ -278,7 +345,6 @@ class PredictionService:
         future_full = builder.get_future_features(train_df, horizon_days)
         forecast = model.predict(future_full)
 
-        # Predictions are the last horizon_days rows
         tail = forecast.tail(horizon_days)
         predictions = [
             {
@@ -296,7 +362,13 @@ class PredictionService:
     # Gradient Boosting ensemble
     # ------------------------------------------------------------------
 
-    def _train_gbm(self, df: pd.DataFrame, feature_cols: list[str], horizon_days: int):
+    def _train_gbm(
+        self,
+        df: pd.DataFrame,
+        feature_cols: list[str],
+        horizon_days: int,
+        builder: FeatureBuilder,
+    ) -> tuple[object, list[float], dict]:
         from sklearn.ensemble import GradientBoostingRegressor
         from sklearn.metrics import mean_absolute_error
 
@@ -314,7 +386,9 @@ class PredictionService:
         gbm.fit(X_train, y_train)
         preds = gbm.predict(X_test)
         mae = mean_absolute_error(y_test, preds)
-        mape = float((abs(y_test - preds) / y_test).mean() * 100)
+        mape = float(
+            (np.abs(y_test - preds) / np.clip(np.abs(y_test), 1e-8, None)).mean() * 100
+        )
 
         gbm_full = GradientBoostingRegressor(
             n_estimators=200, max_depth=4, learning_rate=0.05,
@@ -322,11 +396,12 @@ class PredictionService:
         )
         gbm_full.fit(X, y)
 
-        last_features = X[-1:].copy()
-        gbm_preds = []
-        for _ in range(horizon_days):
-            pred = float(gbm_full.predict(last_features)[0])
-            gbm_preds.append(pred)
+        # Use the same future-feature extrapolation as Prophet so both models
+        # see consistent inputs; previously last_features was never updated,
+        # causing flat/constant GBM predictions across all horizon days.
+        future_df = builder.get_future_features(df, horizon_days)
+        future_X = future_df.tail(horizon_days)[feature_cols].fillna(0.0).values
+        gbm_preds = [float(gbm_full.predict(row.reshape(1, -1))[0]) for row in future_X]
 
         return gbm_full, gbm_preds, {"mae": round(mae, 4), "mape": round(mape, 4)}
 

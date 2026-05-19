@@ -124,7 +124,7 @@ async def _train_symbol(symbol: str, horizon_days: int = 30) -> None:
             fetcher = NSEFetcher()
             await fetcher.fetch_and_store(symbol, period="2y", db=db, force=True)
 
-            await predictor.train(symbol, horizon_days, "prophet-multisignal", db)
+            await predictor.train(symbol, horizon_days, db)
             logger.info(f"[retrain] Finished {symbol}")
     except Exception as exc:
         logger.error(f"[retrain] Failed {symbol}: {exc}", exc_info=True)

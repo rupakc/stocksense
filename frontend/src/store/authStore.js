@@ -6,9 +6,13 @@ export const useAuthStore = create(
     (set) => ({
       token: null,
       username: null,
+      is_admin: false,
+      requiresPasswordChange: false,
 
-      login: (token, username) => set({ token, username }),
-      logout: () => set({ token: null, username: null }),
+      login: (token, username, is_admin = false, requiresPasswordChange = false) =>
+        set({ token, username, is_admin, requiresPasswordChange }),
+      clearPasswordChangeRequired: () => set({ requiresPasswordChange: false }),
+      logout: () => set({ token: null, username: null, is_admin: false, requiresPasswordChange: false }),
     }),
     { name: 'stocksense-auth' }
   )

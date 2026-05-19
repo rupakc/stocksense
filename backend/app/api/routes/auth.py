@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
-from app.core.security import create_access_token, hash_password, verify_password
+from app.core.security import create_access_token, hash_password, validate_password_strength, verify_password
 from app.db.database import get_db
 from app.db.models import User
 from app.schemas.auth import LoginRequest, TokenResponse
@@ -29,18 +29,6 @@ def _check_rate_limit(client_ip: str):
     _login_attempts[client_ip].append(now)
 
 
-def _validate_password_strength(v: str) -> str:
-    if len(v) < 8:
-        raise ValueError('Password must be at least 8 characters')
-    if not any(c.isupper() for c in v):
-        raise ValueError('Password must contain at least one uppercase letter')
-    if not any(c.isdigit() for c in v):
-        raise ValueError('Password must contain at least one digit')
-    if not any(c in '!@#$%^&*()_+-=[]{}|;:,.<>?' for c in v):
-        raise ValueError('Password must contain at least one special character')
-    return v
-
-
 class RegisterRequest(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     password: str = Field(..., min_length=8, max_length=128)
@@ -48,7 +36,7 @@ class RegisterRequest(BaseModel):
     @field_validator('password')
     @classmethod
     def password_strength(cls, v):
-        return _validate_password_strength(v)
+        return validate_password_strength(v)
 
 
 class ChangePasswordRequest(BaseModel):
@@ -58,7 +46,7 @@ class ChangePasswordRequest(BaseModel):
     @field_validator('new_password')
     @classmethod
     def password_strength(cls, v):
-        return _validate_password_strength(v)
+        return validate_password_strength(v)
 
 
 class UserProfile(BaseModel):
@@ -94,24 +82,21 @@ async def login(req: LoginRequest, request: Request, db: AsyncSession = Depends(
             detail="Incorrect username or password",
         )
 
-    token = create_access_token(user.id, user.username)
-    return TokenResponse(access_token=token, username=user.username)
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is deactivated")
+
+    token = create_access_token(user.id, user.username, is_admin=user.is_admin)
+    return TokenResponse(
+        access_token=token,
+        username=user.username,
+        is_admin=user.is_admin,
+        requires_password_change=user.is_first_login,
+    )
 
 
-@router.post("/register", response_model=TokenResponse, status_code=201)
-async def register(req: RegisterRequest, request: Request, db: AsyncSession = Depends(get_db)):
-    _check_rate_limit(request.client.host)
-    result = await db.execute(select(User).where(User.username == req.username))
-    if result.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail="Username already taken")
-
-    user = User(username=req.username, hashed_password=hash_password(req.password))
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
-
-    token = create_access_token(user.id, user.username)
-    return TokenResponse(access_token=token, username=user.username)
+@router.post("/register", status_code=403)
+async def register():
+    raise HTTPException(status_code=403, detail="Self-registration is disabled. Contact an administrator.")
 
 
 @router.get("/me", response_model=UserProfile)
@@ -119,14 +104,14 @@ async def get_profile(current_user: User = Depends(get_current_user)):
     return UserProfile(
         id=current_user.id,
         username=current_user.username,
-        preferred_exchange=getattr(current_user, 'preferred_exchange', None) or "ALL",
+        preferred_exchange=current_user.preferred_exchange or "ALL",
         created_at=current_user.created_at.isoformat(),
     )
 
 
 @router.get("/preferences")
 async def get_preferences(current_user: User = Depends(get_current_user)):
-    return {"preferred_exchange": getattr(current_user, 'preferred_exchange', None) or "ALL"}
+    return {"preferred_exchange": current_user.preferred_exchange or "ALL"}
 
 
 @router.put("/preferences")
@@ -150,5 +135,6 @@ async def change_password(
         raise HTTPException(status_code=400, detail="Current password is incorrect")
 
     current_user.hashed_password = hash_password(req.new_password)
+    current_user.is_first_login = False
     await db.commit()
     return {"message": "Password updated successfully"}

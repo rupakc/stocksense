@@ -174,9 +174,10 @@ export default function Screener() {
   const [near52Low, setNear52Low] = useState(false)
   const [near52High, setNear52High] = useState(false)
 
-  // Build API params from filters
+  // Build API params from filters — exchange is passed server-side so the
+  // scan universe is scoped to the right market from the start.
   const queryParams = useMemo(() => {
-    const p = { sort_by: sortBy, limit: 50, ...filters }
+    const p = { exchange: globalExchange, sort_by: sortBy, limit: 50, ...filters }
     if (sector) p.sector = sector
     if (mcapTier > 0) p.min_market_cap = MCAP_OPTIONS[mcapTier].value
     if (maxPe) p.max_pe = parseFloat(maxPe)
@@ -186,7 +187,7 @@ export default function Screener() {
     if (near52Low) p.near_52w_low_pct = 10
     if (near52High) p.near_52w_high_pct = 5
     return p
-  }, [filters, sector, mcapTier, maxPe, minDividend, minRoe, maxDe, near52Low, near52High, sortBy])
+  }, [filters, globalExchange, sector, mcapTier, maxPe, minDividend, minRoe, maxDe, near52Low, near52High, sortBy])
 
   const { data: stocks, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['screener', queryParams],
@@ -195,19 +196,14 @@ export default function Screener() {
     retry: 1,
   })
 
-  const matchesSelected = useExchangeStore((s) => s.matchesSelected)
-
   const { data: sectors } = useQuery({
     queryKey: ['screener-sectors'],
     queryFn: getScreenerSectors,
     staleTime: 30 * 60 * 1000,
   })
 
-  // Filter by exchange, then client-side column sorting
-  const exchangeFiltered = useMemo(() => {
-    if (!stocks) return []
-    return stocks.filter(s => matchesSelected(s.symbol))
-  }, [stocks, matchesSelected, globalExchange])
+  // Server already scopes results to the selected exchange; sort client-side only.
+  const exchangeFiltered = useMemo(() => stocks ?? [], [stocks])
 
   const sortedStocks = useMemo(() => {
     if (!exchangeFiltered.length || !sortCol.key) return exchangeFiltered

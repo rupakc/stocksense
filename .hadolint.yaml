@@ -1,0 +1,7 @@
+failure-threshold: warning
+ignore:
+  - DL3008   # apt-get without version pinning — impractical for slim base images
+  - DL3018   # apk without version pinning — same for alpine
+trustedRegistries:
+  - docker.io
+  - europe-west1-docker.pkg.dev

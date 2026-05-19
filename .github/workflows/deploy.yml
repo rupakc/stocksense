@@ -1,0 +1,159 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+env:
+  REGISTRY: europe-west1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/stocksense
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Enable required APIs
+        run: |
+          gcloud services enable \
+            serviceusage.googleapis.com \
+            run.googleapis.com \
+            artifactregistry.googleapis.com \
+            secretmanager.googleapis.com \
+            storage.googleapis.com \
+            iam.googleapis.com \
+            cloudresourcemanager.googleapis.com \
+            compute.googleapis.com \
+            monitoring.googleapis.com \
+            logging.googleapis.com \
+            --project=${{ secrets.GCP_PROJECT_ID }} --quiet
+
+      - name: Create Terraform state bucket
+        run: |
+          BUCKET="${{ secrets.GCP_PROJECT_ID }}-tf-state"
+          if ! gcloud storage buckets describe "gs://$BUCKET" \
+               --project=${{ secrets.GCP_PROJECT_ID }} &>/dev/null; then
+            gcloud storage buckets create "gs://$BUCKET" \
+              --project=${{ secrets.GCP_PROJECT_ID }} \
+              --location=europe-west1 \
+              --uniform-bucket-level-access
+            gcloud storage buckets update "gs://$BUCKET" --versioning
+          fi
+
+      - name: Create Artifact Registry repo
+        run: |
+          if ! gcloud artifacts repositories describe stocksense \
+               --location=europe-west1 \
+               --project=${{ secrets.GCP_PROJECT_ID }} &>/dev/null; then
+            gcloud artifacts repositories create stocksense \
+              --repository-format=docker \
+              --location=europe-west1 \
+              --project=${{ secrets.GCP_PROJECT_ID }}
+          fi
+
+      - name: Populate Secret Manager secrets
+        run: |
+          PROJECT=${{ secrets.GCP_PROJECT_ID }}
+          upsert_secret() {
+            local name="$1"
+            local value="$2"
+            if ! gcloud secrets describe "$name" --project="$PROJECT" &>/dev/null; then
+              gcloud secrets create "$name" \
+                --project="$PROJECT" \
+                --replication-policy=automatic
+            fi
+            echo -n "$value" | gcloud secrets versions add "$name" \
+              --data-file=- --project="$PROJECT"
+          }
+          upsert_secret "jwt-secret-key"           "${{ secrets.JWT_SECRET_KEY }}"
+          upsert_secret "stocksense-admin-password" "${{ secrets.STOCKSENSE_ADMIN_PASSWORD }}"
+
+  push-images:
+    runs-on: ubuntu-latest
+    needs: bootstrap
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker
+        run: gcloud auth configure-docker europe-west1-docker.pkg.dev --quiet
+
+      - name: Build and push backend
+        run: |
+          REGISTRY="europe-west1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/stocksense"
+          docker build -f backend/Dockerfile . -t "$REGISTRY/backend:${{ github.sha }}"
+          docker push "$REGISTRY/backend:${{ github.sha }}"
+
+      - name: Build and push frontend
+        run: |
+          REGISTRY="europe-west1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/stocksense"
+          docker build frontend/ -t "$REGISTRY/frontend:${{ github.sha }}"
+          docker push "$REGISTRY/frontend:${{ github.sha }}"
+
+  terraform:
+    runs-on: ubuntu-latest
+    needs: [bootstrap, push-images]
+    env:
+      TF_VAR_project_id:     ${{ secrets.GCP_PROJECT_ID }}
+      TF_VAR_admin_email:    rchakraborty@dataguard.com
+      TF_VAR_backend_image:  europe-west1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/stocksense/backend:${{ github.sha }}
+      TF_VAR_frontend_image: europe-west1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/stocksense/frontend:${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7"
+
+      - name: Terraform Init
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ secrets.GCP_PROJECT_ID }}-tf-state" \
+            -backend-config="prefix=terraform/state"
+        working-directory: infrastructure/terraform
+
+      - name: Terraform Validate
+        run: terraform validate
+        working-directory: infrastructure/terraform
+
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+        working-directory: infrastructure/terraform
+
+      - name: Terraform Apply
+        run: terraform apply tfplan
+        working-directory: infrastructure/terraform
+
+      - name: Read deployment URLs
+        id: urls
+        run: |
+          echo "frontend=$(terraform output -raw frontend_url)" >> $GITHUB_OUTPUT
+          echo "backend=$(terraform output -raw backend_url)"  >> $GITHUB_OUTPUT
+        working-directory: infrastructure/terraform
+
+      - name: Terraform Apply — wire CORS to real frontend URL
+        run: |
+          terraform apply -auto-approve \
+            -var 'cors_origins=["${{ steps.urls.outputs.frontend }}"]'
+        working-directory: infrastructure/terraform
+
+      - name: Deployment summary
+        run: |
+          echo "Frontend: ${{ steps.urls.outputs.frontend }}"
+          echo "Backend:  ${{ steps.urls.outputs.backend }}"

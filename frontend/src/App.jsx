@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { BrowserRouter, Routes, Route, NavLink, useLocation } from 'react-router'
-import { BarChart2, Newspaper, TrendingUp, Globe, Star, Briefcase, Menu, X, Zap, Calendar, Settings as SettingsIcon, ShieldAlert, Moon, Sun, Search, Scale, Activity, GitBranch, Building2, ChevronDown, Check } from 'lucide-react'
+import { BarChart2, Newspaper, TrendingUp, Globe, Star, Briefcase, Menu, X, Zap, Calendar, Settings as SettingsIcon, ShieldAlert, Moon, Sun, Search, Scale, Activity, GitBranch, Building2, ChevronDown, Check, UsersRound } from 'lucide-react'
 import ErrorBoundary from './components/ErrorBoundary'
 import { ToastProvider } from './components/Toast'
 import { useAuthStore } from './store/authStore'
 import { useThemeStore } from './store/themeStore'
 import { useExchangeStore } from './store/exchangeStore'
 import Login from './pages/Login'
+import ForceChangePassword from './pages/ForceChangePassword'
 import Dashboard from './pages/Dashboard'
 import StockDetail from './pages/StockDetail'
 import NewsFeed from './pages/NewsFeed'
@@ -23,6 +24,8 @@ import CorporateActions from './pages/CorporateActions'
 import MutualFunds from './pages/MutualFunds'
 import Momentum from './pages/Momentum'
 import Alerts from './pages/Alerts'
+import AdminPanel from './pages/AdminPanel'
+import ProtectedAdmin from './components/ProtectedAdmin'
 
 const primaryNav = [
   { to: '/', label: 'Dashboard', icon: BarChart2 },
@@ -171,6 +174,7 @@ function ExchangeDropdown() {
 function Nav() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const username = useAuthStore((s) => s.username)
+  const is_admin = useAuthStore((s) => s.is_admin)
   const dark = useThemeStore((s) => s.dark)
   const toggleTheme = useThemeStore((s) => s.toggle)
 
@@ -199,6 +203,12 @@ function Nav() {
               {label}
             </NavLink>
           ))}
+          {is_admin && (
+            <NavLink to="/admin" className={linkClass}>
+              <UsersRound className="w-4 h-4" />
+              Admin
+            </NavLink>
+          )}
           <MoreDropdown />
         </div>
 
@@ -246,6 +256,12 @@ function Nav() {
                 {label}
               </NavLink>
             ))}
+            {is_admin && (
+              <NavLink to="/admin" className={linkClass} onClick={() => setMobileOpen(false)}>
+                <UsersRound className="w-4 h-4" />
+                Admin
+              </NavLink>
+            )}
           </div>
           {moreNavGroups.map((group) => (
             <div key={group.heading} className="mt-3">
@@ -270,6 +286,7 @@ function Nav() {
 
 export default function App() {
   const token = useAuthStore((s) => s.token)
+  const requiresPasswordChange = useAuthStore((s) => s.requiresPasswordChange)
   const initTheme = useThemeStore((s) => s.init)
   const syncExchange = useExchangeStore((s) => s.syncFromServer)
   const loadExchanges = useExchangeStore((s) => s.loadExchanges)
@@ -282,6 +299,7 @@ export default function App() {
   }, [token])
 
   if (!token) return <Login />
+  if (requiresPasswordChange) return <ForceChangePassword />
 
   return (
     <BrowserRouter>
@@ -307,6 +325,7 @@ export default function App() {
                 <Route path="/mutual-funds" element={<MutualFunds />} />
                 <Route path="/alerts" element={<Alerts />} />
                 <Route path="/settings" element={<Settings />} />
+                <Route path="/admin" element={<ProtectedAdmin><AdminPanel /></ProtectedAdmin>} />
               </Routes>
             </ErrorBoundary>
           </main>
