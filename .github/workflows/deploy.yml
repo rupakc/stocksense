@@ -128,6 +128,10 @@ jobs:
             -backend-config="prefix=terraform/state"
         working-directory: infrastructure/terraform
 
+      - name: Remove orphaned sqlite_backup bucket from Terraform state
+        run: terraform state rm module.storage.google_storage_bucket.sqlite_backup || true
+        working-directory: infrastructure/terraform
+
       - name: Terraform Validate
         run: terraform validate
         working-directory: infrastructure/terraform
