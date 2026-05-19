@@ -175,11 +175,10 @@ async def get_indices(exchange: str = Query(default="ALL", description="ALL, NSE
     all_indices = get_indices_for_exchange(exchange.upper())
     items = list(all_indices.items())
     sem = asyncio.Semaphore(10)
-    loop = asyncio.get_event_loop()
 
     async def _limited_quote(ticker: str):
         async with sem:
-            return await loop.run_in_executor(None, fetcher.get_live_quote, ticker)
+            return await asyncio.to_thread(fetcher.get_live_quote, ticker)
 
     results = await asyncio.gather(*(_limited_quote(ticker) for _, ticker in items))
     return {name: quote for (name, _), quote in zip(items, results) if quote}

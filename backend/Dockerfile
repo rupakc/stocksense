@@ -2,13 +2,17 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system deps for Prophet/pystan
+# System deps: gcc/g++/make for CmdStan compilation; curl for download; procps for diagnostics
 RUN apt-get update && apt-get install -y \
-    gcc g++ make \
+    gcc g++ make curl procps \
     && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml .
 RUN pip install --no-cache-dir -e .
+
+# Install CmdStan binary required by Prophet — compiles C++, takes ~5 min on first build
+RUN python -c "import cmdstanpy; cmdstanpy.install_cmdstan(overwrite=True)" && \
+    ls /root/.cmdstan/
 
 COPY . .
 
