@@ -82,6 +82,20 @@ def _get_stock_metrics(symbol: str) -> dict | None:
         return None
 
 
+# Top 100 NSE stocks by market cap (fallback list — must be defined before _build_scan_universe)
+_TOP_NSE_SYMBOLS = [
+    "RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK", "HINDUNILVR",
+    "ITC", "SBIN", "BHARTIARTL", "KOTAKBANK", "LT", "HCLTECH",
+    "AXISBANK", "ASIANPAINT", "MARUTI", "SUNPHARMA", "TITAN",
+    "BAJFINANCE", "DMART", "NESTLEIND", "ULTRACEMCO", "WIPRO",
+    "ONGC", "NTPC", "POWERGRID", "M&M", "TATAMOTORS", "TATASTEEL",
+    "JSWSTEEL", "ADANIENT", "ADANIPORTS", "TECHM", "HDFCLIFE",
+    "SBILIFE", "BAJAJFINSV", "GRASIM", "DIVISLAB", "CIPLA",
+    "DRREDDY", "EICHERMOT", "HEROMOTOCO", "BPCL", "COALINDIA",
+    "IOC", "BRITANNIA", "APOLLOHOSP", "TATACONSUM", "HINDALCO",
+    "INDUSINDBK", "UPL",
+]
+
 # Top NASDAQ stocks ordered by market cap — used as the screener universe.
 # The full live symbol list (symbol_search.py) is used for search/add, where
 # alphabetical order is fine since the user types a query to narrow it down.
@@ -225,17 +239,3 @@ async def get_sectors(current_user: User = Depends(get_current_user)):
         }
     return sorted(sectors)
 
-
-# Top 100 NSE stocks by market cap (fallback list)
-_TOP_NSE_SYMBOLS = [
-    "RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK", "HINDUNILVR",
-    "ITC", "SBIN", "BHARTIARTL", "KOTAKBANK", "LT", "HCLTECH",
-    "AXISBANK", "ASIANPAINT", "MARUTI", "SUNPHARMA", "TITAN",
-    "BAJFINANCE", "DMART", "NESTLEIND", "ULTRACEMCO", "WIPRO",
-    "ONGC", "NTPC", "POWERGRID", "M&M", "TATAMOTORS", "TATASTEEL",
-    "JSWSTEEL", "ADANIENT", "ADANIPORTS", "TECHM", "HDFCLIFE",
-    "SBILIFE", "BAJAJFINSV", "GRASIM", "DIVISLAB", "CIPLA",
-    "DRREDDY", "EICHERMOT", "HEROMOTOCO", "BPCL", "COALINDIA",
-    "IOC", "BRITANNIA", "APOLLOHOSP", "TATACONSUM", "HINDALCO",
-    "INDUSINDBK", "UPL",
-]

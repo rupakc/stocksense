@@ -24,18 +24,47 @@ def _safe(val, decimals=2):
         return None
 
 
+def _resolve_yf_symbol(symbol: str) -> list[str]:
+    """Return ordered list of yfinance symbols to try for a given input.
+
+    Bare symbols (no dot, no leading ^) are assumed to be NSE first.
+    NASDAQ symbols are tried as bare if .NS lookup fails.
+    """
+    if '.' in symbol or symbol.startswith('^'):
+        return [symbol]
+    # NSE first (most users on this platform are trading Indian equities),
+    # then BSE, then bare (NASDAQ / US stocks)
+    return [symbol + '.NS', symbol + '.BO', symbol]
+
+
 def _get_comparison_data(symbol: str) -> dict | None:
+    candidates = _resolve_yf_symbol(symbol)
+    # Use the first candidate as the primary cache key
+    cache_key = candidates[0]
+
     now = time.monotonic()
-    cached = _compare_cache.get(symbol)
+    cached = _compare_cache.get(cache_key)
     if cached and (now - cached[0]) < _CACHE_TTL:
         return cached[1]
-    try:
-        ticker = yf.Ticker(symbol)
-        info = ticker.info
-        if not info or not info.get("regularMarketPrice"):
-            return None
 
-        hist = ticker.history(period="1y")
+    info = None
+    yf_symbol = None
+    for candidate in candidates:
+        try:
+            t = yf.Ticker(candidate)
+            i = t.info
+            if i and i.get("regularMarketPrice"):
+                info = i
+                yf_symbol = candidate
+                break
+        except Exception:
+            continue
+
+    if info is None or yf_symbol is None:
+        return None
+
+    try:
+        hist = yf.Ticker(yf_symbol).history(period="1y")
         price_history = []
         if hist is not None and len(hist) > 0:
             first_close = hist["Close"].iloc[0]
@@ -79,10 +108,10 @@ def _get_comparison_data(symbol: str) -> dict | None:
             "book_value": _safe(info.get("bookValue")),
             "price_history": price_history,
         }
-        _compare_cache[symbol] = (now, result)
+        _compare_cache[cache_key] = (now, result)
         return result
     except Exception as e:
-        logger.warning(f"Compare fetch failed for {symbol}: {e}")
+        logger.warning(f"Compare fetch failed for {symbol} (tried {candidates}): {e}")
         return None
 
 

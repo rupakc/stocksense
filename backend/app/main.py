@@ -39,13 +39,16 @@ def _ensure_utc(dt: datetime) -> datetime:
 
 async def _daily_training_loop() -> None:
     """Train models for watchlist symbols with stale or missing predictions."""
-    await asyncio.sleep(10)  # let the app finish starting
+    # Wait for DB init + seed to complete before first scan
+    await asyncio.sleep(15)
 
     while True:
         try:
+            logger.info("[scheduler] Scanning for stale/missing predictions...")
             await _retrain_stale_symbols()
         except Exception as exc:
             logger.error(f"[scheduler] Training loop error: {exc}", exc_info=True)
+        logger.info(f"[scheduler] Next training scan in {RETRAIN_INTERVAL}")
         await asyncio.sleep(RETRAIN_INTERVAL.total_seconds())
 
 
@@ -86,20 +89,24 @@ async def _retrain_stale_symbols() -> None:
     ]
 
     if not stale_symbols:
+        logger.info("[scheduler] All symbols are up to date — nothing to train")
         return
+
+    logger.info(f"[scheduler] Stale symbols to train: {stale_symbols}")
 
     async def _train_limited(symbol: str) -> None:
         async with _TRAIN_SEMAPHORE:
             try:
-                logger.info(f"[scheduler] Queuing training for {symbol}")
+                logger.info(f"[scheduler] Starting training for {symbol}")
                 await asyncio.wait_for(
                     predictions._train_symbol(symbol, 30),
                     timeout=_TRAIN_TIMEOUT,
                 )
+                logger.info(f"[scheduler] Completed training for {symbol}")
             except asyncio.TimeoutError:
                 logger.error(f"[retrain] Timed out training {symbol} after {_TRAIN_TIMEOUT}s")
             except Exception as exc:
-                logger.error(f"[retrain] Failed {symbol}: {exc}")
+                logger.error(f"[retrain] Failed {symbol}: {exc}", exc_info=True)
 
     await asyncio.gather(*[_train_limited(s) for s in stale_symbols])
 
