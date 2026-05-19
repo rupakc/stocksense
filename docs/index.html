@@ -8,620 +8,583 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #0a0f1e;
-      --bg2: #0f1629;
-      --bg3: #141c35;
-      --accent: #00d4aa;
-      --accent2: #00b894;
-      --accent-dim: rgba(0, 212, 170, 0.12);
-      --accent-glow: rgba(0, 212, 170, 0.25);
-      --text: #e8edf5;
-      --text-muted: #7a8ba8;
-      --border: rgba(0, 212, 170, 0.18);
-      --card-bg: rgba(15, 22, 41, 0.85);
-      --radius: 12px;
+      --emerald:        #10b981;
+      --emerald-light:  #d1fae5;
+      --emerald-mid:    #34d399;
+      --amber:          #f59e0b;
+      --amber-light:    #fef3c7;
+      --sky:            #0ea5e9;
+      --sky-light:      #e0f2fe;
+      --violet:         #7c3aed;
+      --violet-light:   #ede9fe;
+      --rose:           #e11d48;
+      --rose-light:     #fff1f2;
+      --bg:             #f8fafc;
+      --bg-white:       #ffffff;
+      --bg-subtle:      #f1f5f9;
+      --border:         #e2e8f0;
+      --border-md:      #cbd5e1;
+      --text:           #0f172a;
+      --text-mid:       #334155;
+      --text-muted:     #64748b;
+      --code-bg:        #1e293b;
     }
+
+    html { scroll-behavior: smooth; }
 
     body {
-      background-color: var(--bg);
+      background: var(--bg);
       color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
       line-height: 1.6;
-      min-height: 100vh;
-      overflow-x: hidden;
+      font-size: 16px;
     }
 
-    /* Grid background */
-    body::before {
-      content: "";
-      position: fixed;
-      inset: 0;
-      background-image:
-        linear-gradient(rgba(0, 212, 170, 0.04) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0, 212, 170, 0.04) 1px, transparent 1px);
-      background-size: 48px 48px;
-      pointer-events: none;
-      z-index: 0;
-    }
+    a { color: var(--emerald); text-decoration: none; }
+    a:hover { text-decoration: underline; }
 
-    /* Chart-line decorative element */
-    body::after {
-      content: "";
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: 220px;
-      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 220'%3E%3Cpolyline points='0,180 80,160 160,170 240,130 320,110 400,140 480,90 560,100 640,60 720,80 800,50 880,70 960,40 1040,55 1120,30 1200,45 1280,20 1360,35 1440,10' fill='none' stroke='rgba(0,212,170,0.12)' stroke-width='2'/%3E%3Cpolyline points='0,200 80,185 160,192 240,165 320,148 400,170 480,128 560,140 640,105 720,120 800,95 880,108 960,82 1040,96 1120,72 1200,85 1280,60 1360,75 1440,50' fill='none' stroke='rgba(0,212,170,0.06)' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat bottom center;
-      background-size: cover;
-      pointer-events: none;
-      z-index: 0;
-    }
-
-    .container {
-      max-width: 1100px;
-      margin: 0 auto;
-      padding: 0 24px;
-      position: relative;
-      z-index: 1;
-    }
-
-    /* Nav */
+    /* ── NAV ── */
     nav {
-      padding: 20px 0;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+      position: sticky; top: 0; z-index: 200;
+      background: rgba(255,255,255,0.88);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
       border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 62px;
     }
-
-    .nav-logo {
-      font-size: 1.2rem;
-      font-weight: 700;
-      color: var(--accent);
-      letter-spacing: -0.5px;
+    .nav-brand {
+      font-weight: 800; font-size: 1.1rem; color: var(--text);
+      display: flex; align-items: center; gap: 0.55rem;
+      letter-spacing: -0.02em;
     }
-
-    .nav-links {
-      display: flex;
-      gap: 12px;
+    .nav-brand-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: linear-gradient(135deg, var(--emerald), var(--amber));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem; flex-shrink: 0;
     }
-
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 9px 18px;
-      border-radius: 8px;
-      font-size: 0.875rem;
-      font-weight: 600;
-      text-decoration: none;
-      transition: all 0.2s;
-      cursor: pointer;
-      border: none;
+    .nav-links { display: flex; gap: 1.75rem; align-items: center; }
+    .nav-links a { color: var(--text-muted); font-size: 0.9rem; font-weight: 500; transition: color 0.15s; }
+    .nav-links a:hover { color: var(--text); text-decoration: none; }
+    .nav-cta {
+      background: var(--emerald); color: #fff !important;
+      padding: 0.45rem 1.1rem; border-radius: 7px;
+      font-weight: 600 !important; font-size: 0.85rem !important;
+      transition: background 0.15s !important;
     }
+    .nav-cta:hover { background: var(--emerald-mid) !important; text-decoration: none !important; }
 
-    .btn-primary {
-      background: var(--accent);
-      color: #0a0f1e;
-    }
-
-    .btn-primary:hover {
-      background: #00e6b8;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 20px var(--accent-glow);
-    }
-
-    .btn-outline {
-      background: transparent;
-      color: var(--accent);
-      border: 1px solid var(--border);
-    }
-
-    .btn-outline:hover {
-      background: var(--accent-dim);
-      border-color: var(--accent);
-    }
-
-    /* Hero */
+    /* ── HERO ── */
     .hero {
-      padding: 90px 0 70px;
       text-align: center;
-    }
-
-    .hero-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 16px;
-      background: var(--accent-dim);
-      border: 1px solid var(--border);
-      border-radius: 100px;
-      font-size: 0.78rem;
-      color: var(--accent);
-      font-weight: 600;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
-      margin-bottom: 28px;
-    }
-
-    .hero-badge::before {
-      content: "";
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: var(--accent);
-      animation: pulse 2s infinite;
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.5; transform: scale(1.4); }
-    }
-
-    .hero h1 {
-      font-size: clamp(2.4rem, 5vw, 3.8rem);
-      font-weight: 800;
-      line-height: 1.12;
-      letter-spacing: -1.5px;
-      color: var(--text);
-      margin-bottom: 12px;
-    }
-
-    .hero h1 .logo-emoji {
-      display: inline-block;
-      font-style: normal;
-    }
-
-    .hero h1 .accent { color: var(--accent); }
-
-    .hero-subtitle {
-      font-size: 1.15rem;
-      color: var(--text-muted);
-      margin-bottom: 28px;
-      font-weight: 400;
-    }
-
-    .hero-description {
-      max-width: 680px;
-      margin: 0 auto 40px;
-      font-size: 1.05rem;
-      color: #9aacbf;
-      line-height: 1.75;
-    }
-
-    .hero-cta {
-      display: flex;
-      gap: 12px;
-      justify-content: center;
-      flex-wrap: wrap;
-    }
-
-    /* Section headings */
-    .section {
-      padding: 70px 0;
-    }
-
-    .section-label {
-      font-size: 0.75rem;
-      font-weight: 700;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      color: var(--accent);
-      margin-bottom: 10px;
-    }
-
-    .section-title {
-      font-size: clamp(1.6rem, 3vw, 2.1rem);
-      font-weight: 750;
-      letter-spacing: -0.5px;
-      margin-bottom: 12px;
-      color: var(--text);
-    }
-
-    .section-subtitle {
-      color: var(--text-muted);
-      font-size: 1rem;
-      margin-bottom: 48px;
-      max-width: 540px;
-    }
-
-    /* Feature grid */
-    .features-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 20px;
-    }
-
-    @media (max-width: 768px) {
-      .features-grid { grid-template-columns: 1fr; }
-    }
-
-    @media (max-width: 1024px) and (min-width: 769px) {
-      .features-grid { grid-template-columns: repeat(2, 1fr); }
-    }
-
-    .feature-card {
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 28px 24px;
-      transition: all 0.25s;
-      backdrop-filter: blur(8px);
-    }
-
-    .feature-card:hover {
-      border-color: var(--accent);
-      box-shadow: 0 0 30px var(--accent-glow);
-      transform: translateY(-2px);
-    }
-
-    .feature-icon {
-      font-size: 1.8rem;
-      margin-bottom: 14px;
-      display: block;
-    }
-
-    .feature-title {
-      font-size: 1rem;
-      font-weight: 700;
-      color: var(--text);
-      margin-bottom: 8px;
-    }
-
-    .feature-desc {
-      font-size: 0.875rem;
-      color: var(--text-muted);
-      line-height: 1.6;
-    }
-
-    /* How it works */
-    .steps {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 0;
+      padding: 6.5rem 2rem 5rem;
+      max-width: 900px;
+      margin: 0 auto;
       position: relative;
     }
-
-    @media (max-width: 768px) {
-      .steps { grid-template-columns: 1fr; gap: 20px; }
-      .steps::before { display: none; }
-    }
-
-    .steps::before {
-      content: "";
+    .hero-blob {
       position: absolute;
-      top: 28px;
-      left: calc(16.67% + 24px);
-      right: calc(16.67% + 24px);
-      height: 1px;
-      background: linear-gradient(90deg, var(--accent), transparent 50%, var(--accent));
-      opacity: 0.3;
+      width: 700px; height: 500px;
+      top: -60px; left: 50%;
+      transform: translateX(-50%);
+      background: radial-gradient(ellipse at 50% 40%, rgba(16,185,129,0.11) 0%, rgba(245,158,11,0.07) 45%, transparent 70%);
+      pointer-events: none; z-index: 0;
     }
-
-    .step {
-      text-align: center;
-      padding: 0 24px;
+    .hero > *:not(.hero-blob) { position: relative; z-index: 1; }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      background: var(--emerald-light);
+      border: 1px solid rgba(16,185,129,0.3);
+      color: var(--emerald);
+      padding: 0.3rem 1rem; border-radius: 999px;
+      font-size: 0.78rem; font-weight: 700;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      margin-bottom: 1.75rem;
     }
-
-    .step-number {
-      width: 56px;
-      height: 56px;
-      border-radius: 50%;
-      background: var(--accent-dim);
-      border: 1.5px solid var(--accent);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.2rem;
-      font-weight: 800;
-      color: var(--accent);
-      margin: 0 auto 20px;
-      position: relative;
-      z-index: 1;
+    .hero-badge-dot { width: 6px; height: 6px; background: var(--emerald); border-radius: 50%; animation: pulse 2s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1);} 50%{opacity:.4;transform:scale(.7);} }
+    .hero h1 {
+      font-size: clamp(2.5rem, 6.5vw, 4.2rem);
+      font-weight: 900; line-height: 1.08;
+      letter-spacing: -0.04em; margin-bottom: 1.4rem; color: var(--text);
     }
-
-    .step-title {
-      font-size: 1rem;
-      font-weight: 700;
-      margin-bottom: 10px;
-      color: var(--text);
+    .hero h1 .grad {
+      background: linear-gradient(135deg, var(--emerald) 0%, var(--amber) 55%, var(--sky) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
     }
-
-    .step-desc {
-      font-size: 0.875rem;
-      color: var(--text-muted);
-      line-height: 1.6;
+    .hero-sub {
+      font-size: 1.15rem; color: var(--text-muted);
+      max-width: 660px; margin: 0 auto 2.75rem; line-height: 1.8;
     }
+    .hero-buttons { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 0.45rem;
+      padding: 0.7rem 1.5rem; border-radius: 9px;
+      font-size: 0.95rem; font-weight: 700;
+      transition: all 0.18s; cursor: pointer; border: none; letter-spacing: -0.01em;
+    }
+    .btn-primary { background: linear-gradient(135deg, var(--emerald), #059669); color: #fff; box-shadow: 0 4px 14px rgba(16,185,129,0.35); }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(16,185,129,0.45); text-decoration: none; }
+    .btn-ghost { background: var(--bg-white); color: var(--text); border: 1.5px solid var(--border-md); box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+    .btn-ghost:hover { border-color: var(--emerald); color: var(--emerald); text-decoration: none; }
 
-    /* Tech stack */
-    .tech-stack {
-      padding: 50px 0;
+    @keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+    .fade-up { animation: fadeUp 0.6s ease forwards; }
+    .fade-up-d1 { animation-delay: 0.1s; opacity:0; }
+    .fade-up-d2 { animation-delay: 0.22s; opacity:0; }
+    .fade-up-d3 { animation-delay: 0.34s; opacity:0; }
+    .fade-up-d4 { animation-delay: 0.46s; opacity:0; }
+
+    /* ── STATS ── */
+    .stats-strip {
+      background: var(--bg-white);
       border-top: 1px solid var(--border);
       border-bottom: 1px solid var(--border);
+      padding: 2.25rem 2rem;
     }
-
-    .tech-label {
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: var(--text-muted);
-      letter-spacing: 1.5px;
-      text-transform: uppercase;
-      margin-bottom: 20px;
-      text-align: center;
+    .stats-inner {
+      max-width: 1060px; margin: 0 auto;
+      display: flex; justify-content: space-around; flex-wrap: wrap; gap: 2rem;
     }
-
-    .tech-badges {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      justify-content: center;
+    .stat { text-align: center; }
+    .stat-num {
+      font-size: 2.4rem; font-weight: 900; letter-spacing: -0.04em;
+      background: linear-gradient(135deg, var(--emerald), var(--amber));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
     }
+    .stat-label { font-size: 0.85rem; color: var(--text-muted); font-weight: 500; margin-top: 0.15rem; }
 
-    .badge {
-      padding: 7px 16px;
-      border-radius: 100px;
-      font-size: 0.8rem;
-      font-weight: 600;
-      letter-spacing: 0.3px;
+    /* ── SECTIONS ── */
+    section { padding: 5.5rem 2rem; }
+    .section-inner { max-width: 1080px; margin: 0 auto; }
+    .section-label {
+      font-size: 0.73rem; font-weight: 800; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--emerald); margin-bottom: 0.6rem;
     }
+    .section-title { font-size: clamp(1.7rem, 3.2vw, 2.35rem); font-weight: 800; margin-bottom: 0.9rem; letter-spacing: -0.03em; }
+    .section-subtitle { color: var(--text-muted); max-width: 580px; margin-bottom: 3.5rem; font-size: 1.05rem; line-height: 1.75; }
 
-    .badge-backend { background: rgba(0, 212, 170, 0.1); color: #00d4aa; border: 1px solid rgba(0, 212, 170, 0.3); }
-    .badge-frontend { background: rgba(97, 218, 251, 0.1); color: #61dafb; border: 1px solid rgba(97, 218, 251, 0.25); }
-    .badge-ml { background: rgba(255, 189, 68, 0.1); color: #ffbd44; border: 1px solid rgba(255, 189, 68, 0.25); }
-    .badge-infra { background: rgba(167, 139, 250, 0.1); color: #a78bfa; border: 1px solid rgba(167, 139, 250, 0.25); }
-
-    /* Quick start */
-    .quickstart {
-      padding: 60px 0;
+    /* ── FEATURE CARDS ── */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+      gap: 1.4rem;
     }
-
-    .code-block {
-      background: #070c1a;
+    .card {
+      background: var(--bg-white);
       border: 1px solid var(--border);
-      border-radius: var(--radius);
-      overflow: hidden;
+      border-radius: 14px; padding: 1.75rem;
+      transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+      position: relative; overflow: hidden;
     }
-
-    .code-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 12px 18px;
-      background: rgba(0, 212, 170, 0.05);
-      border-bottom: 1px solid var(--border);
+    .card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      opacity: 0; transition: opacity 0.2s;
     }
-
-    .code-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
+    .card:hover { transform: translateY(-3px); }
+    .card:hover::before { opacity: 1; }
+    .card.em::before  { background: linear-gradient(90deg, var(--emerald), var(--emerald-mid)); }
+    .card.am::before  { background: linear-gradient(90deg, var(--amber), #fbbf24); }
+    .card.sk::before  { background: linear-gradient(90deg, var(--sky), #38bdf8); }
+    .card.vi::before  { background: linear-gradient(90deg, var(--violet), #8b5cf6); }
+    .card.ro::before  { background: linear-gradient(90deg, var(--rose), #f43f5e); }
+    .card.te::before  { background: linear-gradient(90deg, #0d9488, #14b8a6); }
+    .card:hover.em { border-color: rgba(16,185,129,0.4); box-shadow: 0 12px 32px rgba(16,185,129,0.1); }
+    .card:hover.am { border-color: rgba(245,158,11,0.4); box-shadow: 0 12px 32px rgba(245,158,11,0.1); }
+    .card:hover.sk { border-color: rgba(14,165,233,0.4); box-shadow: 0 12px 32px rgba(14,165,233,0.1); }
+    .card:hover.vi { border-color: rgba(124,58,237,0.4); box-shadow: 0 12px 32px rgba(124,58,237,0.1); }
+    .card:hover.ro { border-color: rgba(225,29,72,0.4); box-shadow: 0 12px 32px rgba(225,29,72,0.1); }
+    .card:hover.te { border-color: rgba(13,148,136,0.4); box-shadow: 0 12px 32px rgba(13,148,136,0.1); }
+    .card-icon {
+      width: 44px; height: 44px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.3rem; margin-bottom: 1rem;
     }
+    .card.em .card-icon { background: var(--emerald-light); }
+    .card.am .card-icon { background: var(--amber-light); }
+    .card.sk .card-icon { background: var(--sky-light); }
+    .card.vi .card-icon { background: var(--violet-light); }
+    .card.ro .card-icon { background: var(--rose-light); }
+    .card.te .card-icon { background: #ccfbf1; }
+    .card h3 { font-size: 1.02rem; font-weight: 700; margin-bottom: 0.5rem; letter-spacing: -0.01em; }
+    .card p { color: var(--text-muted); font-size: 0.9rem; line-height: 1.65; }
 
-    .code-body {
-      padding: 24px;
-      overflow-x: auto;
+    /* ── HOW IT WORKS ── */
+    #howitworks { background: var(--bg-subtle); }
+    .steps-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 0; position: relative;
     }
-
-    .code-body pre {
-      font-family: "SF Mono", "Fira Code", "Cascadia Code", Consolas, monospace;
-      font-size: 0.855rem;
-      line-height: 1.75;
-      color: #c9d8eb;
-      white-space: pre;
+    .steps-row::before {
+      content: '';
+      position: absolute; top: 44px; left: 10%; right: 10%; height: 2px;
+      background: linear-gradient(90deg, var(--emerald), var(--amber), var(--sky));
+      z-index: 0;
     }
+    .step-box {
+      background: var(--bg-white); border: 1px solid var(--border);
+      border-radius: 16px; padding: 2rem 1.75rem 1.75rem;
+      position: relative; z-index: 1; margin: 0 0.6rem;
+      text-align: center; transition: box-shadow 0.2s;
+    }
+    .step-box:hover { box-shadow: 0 10px 30px rgba(0,0,0,0.09); }
+    .step-circle {
+      width: 52px; height: 52px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 900; font-size: 1.15rem;
+      margin: 0 auto 1.25rem;
+    }
+    .step-circle.s1 { background: var(--emerald-light); color: var(--emerald); border: 2px solid rgba(16,185,129,0.3); }
+    .step-circle.s2 { background: var(--amber-light); color: var(--amber); border: 2px solid rgba(245,158,11,0.3); }
+    .step-circle.s3 { background: var(--sky-light); color: var(--sky); border: 2px solid rgba(14,165,233,0.3); }
+    .step-box h3 { font-size: 1.05rem; font-weight: 800; margin-bottom: 0.6rem; }
+    .step-box p { color: var(--text-muted); font-size: 0.88rem; line-height: 1.65; }
+    .step-pill {
+      display: inline-block; margin-top: 1.1rem;
+      font-size: 0.78rem; font-weight: 700;
+      padding: 0.25rem 0.8rem; border-radius: 999px;
+    }
+    .step-pill.em { background: var(--emerald-light); color: var(--emerald); }
+    .step-pill.am { background: var(--amber-light); color: var(--amber); }
+    .step-pill.sk { background: var(--sky-light); color: var(--sky); }
 
-    .code-comment { color: #4a5e7a; }
-    .code-cmd { color: var(--accent); }
-    .code-arg { color: #e8c97d; }
-    .code-str { color: #90d4a8; }
-
-    /* Footer */
-    footer {
-      padding: 40px 0;
-      text-align: center;
+    /* ── TECH STACK ── */
+    .tech-strip {
+      background: var(--bg-white);
       border-top: 1px solid var(--border);
-      color: var(--text-muted);
-      font-size: 0.875rem;
+      border-bottom: 1px solid var(--border);
+      padding: 4rem 2rem;
+    }
+    .tech-inner { max-width: 1080px; margin: 0 auto; }
+    .tech-label {
+      font-size: 0.73rem; font-weight: 800; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--text-muted);
+      text-align: center; margin-bottom: 2rem;
+    }
+    .badge-cloud { display: flex; flex-wrap: wrap; gap: 0.6rem; justify-content: center; }
+    .badge {
+      padding: 0.38rem 0.95rem; border-radius: 8px;
+      font-size: 0.8rem; font-weight: 600;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      border: 1px solid;
+    }
+    .badge.em  { background: var(--emerald-light); color: #065f46; border-color: rgba(16,185,129,0.3); }
+    .badge.am  { background: var(--amber-light);   color: #92400e; border-color: rgba(245,158,11,0.3); }
+    .badge.sk  { background: var(--sky-light);     color: #0369a1; border-color: rgba(14,165,233,0.3); }
+    .badge.vi  { background: var(--violet-light);  color: #6d28d9; border-color: rgba(124,58,237,0.3); }
+    .badge.sl  { background: var(--bg-subtle);     color: var(--text-mid); border-color: var(--border-md); }
+
+    /* ── QUICKSTART ── */
+    #quickstart { background: var(--bg-white); }
+    .qs-steps { display: flex; flex-direction: column; gap: 0; margin-bottom: 2rem; }
+    .qs-step {
+      display: flex; gap: 1.25rem; align-items: flex-start;
+      padding: 1.4rem 0; border-bottom: 1px solid var(--border);
+    }
+    .qs-step:last-child { border-bottom: none; }
+    .qs-num {
+      width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+      background: linear-gradient(135deg, var(--emerald), var(--emerald-mid));
+      color: #fff; font-weight: 800; font-size: 0.9rem;
+      display: flex; align-items: center; justify-content: center;
+      margin-top: 0.1rem;
+    }
+    .qs-body h4 { font-size: 0.98rem; font-weight: 700; margin-bottom: 0.25rem; }
+    .qs-body p { color: var(--text-muted); font-size: 0.88rem; line-height: 1.6; }
+    pre {
+      background: var(--code-bg); border-radius: 12px;
+      padding: 1.6rem; overflow-x: auto;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 0.875rem; line-height: 1.8; color: #e2e8f0; margin-top: 1.5rem;
+    }
+    .cc { color: #64748b; }
+    .cmd { color: #34d399; }
+    .url { color: #fbbf24; }
+
+    /* ── CTA ── */
+    .cta-strip {
+      background: linear-gradient(135deg, #ecfdf5 0%, #fffbeb 50%, #eff6ff 100%);
+      border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+      padding: 5rem 2rem; text-align: center;
+    }
+    .cta-strip h2 { font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 800; letter-spacing: -0.03em; margin-bottom: 0.9rem; }
+    .cta-strip p { color: var(--text-muted); font-size: 1.05rem; margin-bottom: 2rem; }
+
+    /* ── RESOURCES ── */
+    .links-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.1rem; }
+    .link-card {
+      background: var(--bg-white); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.35rem 1.5rem;
+      display: flex; flex-direction: column; gap: 0.3rem;
+      transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+    }
+    .link-card:hover { border-color: var(--emerald); box-shadow: 0 6px 20px rgba(16,185,129,0.1); transform: translateY(-2px); text-decoration: none; }
+    .link-card-label { font-size: 0.7rem; font-weight: 800; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-muted); }
+    .link-card-title { font-size: 1rem; font-weight: 700; color: var(--text); }
+    .link-card-desc { font-size: 0.84rem; color: var(--text-muted); line-height: 1.55; }
+
+    /* ── FOOTER ── */
+    footer {
+      background: var(--bg-white); border-top: 1px solid var(--border);
+      padding: 2.75rem 2rem; text-align: center;
+      color: var(--text-muted); font-size: 0.85rem;
+    }
+    footer a { color: var(--text-muted); }
+    footer a:hover { color: var(--emerald); text-decoration: none; }
+    .footer-brand {
+      display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+      font-weight: 700; color: var(--text); font-size: 1rem; margin-bottom: 0.5rem;
+    }
+    .footer-brand-icon {
+      width: 26px; height: 26px; border-radius: 6px;
+      background: linear-gradient(135deg, var(--emerald), var(--amber));
+      display: flex; align-items: center; justify-content: center; font-size: 0.8rem;
     }
 
-    footer a { color: var(--accent); text-decoration: none; }
-    footer a:hover { text-decoration: underline; }
-
-    .divider {
-      width: 48px;
-      height: 3px;
-      background: linear-gradient(90deg, var(--accent), transparent);
-      border-radius: 2px;
-      margin-bottom: 32px;
+    /* ── RESPONSIVE ── */
+    @media (max-width: 768px) {
+      .steps-row::before { display: none; }
+      .step-box { margin: 0.4rem 0; }
+    }
+    @media (max-width: 600px) {
+      nav .nav-links { display: none; }
+      .hero { padding: 4.5rem 1.25rem 3.5rem; }
     }
   </style>
 </head>
 <body>
 
-<div class="container">
-  <nav>
-    <span class="nav-logo">&#x1F4C8; StockSense</span>
-    <div class="nav-links">
-      <a href="https://github.com/rupakc/stocksense" class="btn btn-outline">GitHub</a>
-      <a href="https://github.com/rupakc/stocksense/wiki" class="btn btn-primary">Wiki</a>
-    </div>
-  </nav>
+<nav>
+  <span class="nav-brand">
+    <span class="nav-brand-icon">&#x1F4C8;</span>
+    StockSense
+  </span>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#howitworks">How It Works</a>
+    <a href="#quickstart">Quick Start</a>
+    <a href="https://github.com/rupakc/stocksense/wiki">Wiki</a>
+    <a class="nav-cta" href="https://github.com/rupakc/stocksense">GitHub &rarr;</a>
+  </div>
+</nav>
+
+<div class="hero">
+  <div class="hero-blob"></div>
+  <div class="hero-badge fade-up fade-up-d1"><span class="hero-badge-dot"></span> Live &middot; NSE &middot; BSE &middot; NASDAQ</div>
+  <h1 class="fade-up fade-up-d2">AI-powered<br/><span class="grad">market intelligence</span></h1>
+  <p class="hero-sub fade-up fade-up-d3">
+    StockSense is a self-hosted trading intelligence platform that combines live market data,
+    ML price forecasts, news sentiment analysis, and end-to-end portfolio management &mdash;
+    built for retail investors who want a private, extensible alternative to premium terminals.
+  </p>
+  <div class="hero-buttons fade-up fade-up-d4">
+    <a class="btn btn-primary" href="https://github.com/rupakc/stocksense">&#9733; View on GitHub</a>
+    <a class="btn btn-ghost" href="https://github.com/rupakc/stocksense/wiki">Read the Wiki</a>
+  </div>
 </div>
 
-<!-- Hero -->
-<section class="hero">
-  <div class="container">
-    <div class="hero-badge">Live · NSE · BSE · NASDAQ</div>
-    <h1><span class="logo-emoji">&#x1F4C8;</span> <span class="accent">Stock</span>Sense</h1>
-    <p class="hero-subtitle">AI-powered stock market intelligence for NSE, BSE &amp; NASDAQ</p>
-    <p class="hero-description">
-      StockSense is a self-hosted, full-stack trading intelligence platform that combines live market data,
-      machine learning price forecasts, news sentiment analysis, and end-to-end portfolio management —
-      all in one application. Built for retail investors and quantitative hobbyists who want a private,
-      extensible alternative to premium terminal software.
-    </p>
-    <div class="hero-cta">
-      <a href="https://github.com/rupakc/stocksense" class="btn btn-primary">View on GitHub</a>
-      <a href="https://github.com/rupakc/stocksense/wiki" class="btn btn-outline">Read the Wiki</a>
-    </div>
+<div class="stats-strip">
+  <div class="stats-inner">
+    <div class="stat"><div class="stat-num">32+</div><div class="stat-label">ML features per symbol</div></div>
+    <div class="stat"><div class="stat-num">3</div><div class="stat-label">Exchanges (NSE, BSE, NASDAQ)</div></div>
+    <div class="stat"><div class="stat-num">6</div><div class="stat-label">RSS feeds polled</div></div>
+    <div class="stat"><div class="stat-num">15m</div><div class="stat-label">Data refresh interval</div></div>
+    <div class="stat"><div class="stat-num">30d</div><div class="stat-label">Price forecast horizon</div></div>
   </div>
-</section>
+</div>
 
-<!-- Features -->
-<section class="section">
-  <div class="container">
-    <p class="section-label">Capabilities</p>
-    <h2 class="section-title">Everything you need to track markets</h2>
+<section id="features">
+  <div class="section-inner">
+    <div class="section-label">Capabilities</div>
+    <div class="section-title">Everything you need to track markets</div>
     <p class="section-subtitle">Six core feature areas covering the full investment workflow, from data ingestion to tax reporting.</p>
-    <div class="divider"></div>
-    <div class="features-grid">
-
-      <div class="feature-card">
-        <span class="feature-icon">&#x1F9E0;</span>
-        <div class="feature-title">ML Price Forecasting</div>
-        <div class="feature-desc">Prophet + Gradient Boosting ensemble trained on 32+ features. Confidence-tiered predictions with inverse-MAPE blending. Auto-retrains every 24 hours per symbol.</div>
+    <div class="card-grid">
+      <div class="card em">
+        <div class="card-icon">&#x1F9E0;</div>
+        <h3>ML Price Forecasting</h3>
+        <p>Prophet + Gradient Boosting ensemble trained on 32+ features. Confidence-tiered predictions with inverse-MAPE blending. Auto-retrains every 24 hours per symbol.</p>
       </div>
-
-      <div class="feature-card">
-        <span class="feature-icon">&#x1F4F0;</span>
-        <div class="feature-title">News Sentiment Analysis</div>
-        <div class="feature-desc">Polls 6 RSS feeds every 15 minutes. VADER sentiment scoring with finance-specific lexicon. 7-day and 30-day rolling averages feed directly into the prediction model.</div>
+      <div class="card am">
+        <div class="card-icon">&#x1F4F0;</div>
+        <h3>News Sentiment Analysis</h3>
+        <p>Polls 6 RSS feeds every 15 minutes. VADER sentiment scoring with finance-specific lexicon. 7-day and 30-day rolling averages feed directly into the prediction model.</p>
       </div>
-
-      <div class="feature-card">
-        <span class="feature-icon">&#x1F4BC;</span>
-        <div class="feature-title">Portfolio Tracker</div>
-        <div class="feature-desc">FIFO cost basis calculation across all holdings. Realized and unrealized P&amp;L breakdown. AI-powered portfolio advisor scores each position for buy/hold/sell signals.</div>
+      <div class="card sk">
+        <div class="card-icon">&#x1F4BC;</div>
+        <h3>Portfolio Tracker</h3>
+        <p>FIFO cost basis across all holdings. Realized and unrealized P&amp;L breakdown. AI-powered advisor scores each position for buy/hold/sell signals.</p>
       </div>
-
-      <div class="feature-card">
-        <span class="feature-icon">&#x26A1;</span>
-        <div class="feature-title">Live Market Data</div>
-        <div class="feature-desc">Real-time quotes and OHLCV history for NSE, BSE, and NASDAQ via yfinance. 15-minute cache with background polling during market hours (09:15–15:30 IST).</div>
+      <div class="card vi">
+        <div class="card-icon">&#x26A1;</div>
+        <h3>Live Market Data</h3>
+        <p>Real-time quotes and OHLCV history for NSE, BSE, and NASDAQ via yfinance. 15-minute cache with background polling during market hours (09:15&ndash;15:30 IST).</p>
       </div>
-
-      <div class="feature-card">
-        <span class="feature-icon">&#x1F4CA;</span>
-        <div class="feature-title">Strategy Backtesting</div>
-        <div class="feature-desc">Define signal conditions using any tracked indicator (RSI, MACD, Bollinger Bands). Run backtests against historical data. Review equity curve, Sharpe ratio, and trade log.</div>
+      <div class="card ro">
+        <div class="card-icon">&#x1F4CA;</div>
+        <h3>Strategy Backtesting</h3>
+        <p>Define signal conditions using RSI, MACD, or Bollinger Bands. Run backtests against historical data. Review equity curve, Sharpe ratio, and full trade log.</p>
       </div>
-
-      <div class="feature-card">
-        <span class="feature-icon">&#x1F4CB;</span>
-        <div class="feature-title">Tax Reports</div>
-        <div class="feature-desc">Capital gains classified as short-term or long-term under Indian tax rules. Automatic ₹1 lakh LTCG exemption. Tax-loss harvesting suggestions with potential tax savings calculated.</div>
+      <div class="card te">
+        <div class="card-icon">&#x1F4CB;</div>
+        <h3>Tax Reports</h3>
+        <p>Capital gains classified as short-term or long-term under Indian tax rules. Automatic &#8377;1 lakh LTCG exemption. Tax-loss harvesting suggestions with savings calculated.</p>
       </div>
-
     </div>
   </div>
 </section>
 
-<!-- How it works -->
-<section class="section" style="background: linear-gradient(180deg, transparent, rgba(0,212,170,0.03) 50%, transparent);">
-  <div class="container">
-    <p class="section-label">How It Works</p>
-    <h2 class="section-title">From raw data to actionable insight</h2>
+<section id="howitworks">
+  <div class="section-inner">
+    <div class="section-label">How It Works</div>
+    <div class="section-title">From raw data to actionable insight</div>
     <p class="section-subtitle">Three stages, fully automated. You make the decision; StockSense handles the analysis.</p>
-    <div class="divider"></div>
-    <div class="steps">
-      <div class="step">
-        <div class="step-number">1</div>
-        <div class="step-title">Connect Market Data</div>
-        <div class="step-desc">Autonomous data-fetcher agent pulls live OHLCV quotes and news from 6 RSS feeds every 15 minutes during market hours. Everything is normalized and stored in a local database.</div>
+    <div class="steps-row">
+      <div class="step-box">
+        <div class="step-circle s1">1</div>
+        <h3>Connect Market Data</h3>
+        <p>Autonomous data-fetcher agent pulls live OHLCV quotes and news from 6 RSS feeds every 15 minutes during market hours. Everything is normalized and stored locally.</p>
+        <span class="step-pill em">Continuous</span>
       </div>
-      <div class="step">
-        <div class="step-number">2</div>
-        <div class="step-title">AI Analyzes &amp; Forecasts</div>
-        <div class="step-desc">A blended Prophet + GBM model assembles 32+ features per symbol — candlestick patterns, technical indicators, sentiment, macro data, and index returns — and generates 30-day price forecasts.</div>
+      <div class="step-box">
+        <div class="step-circle s2">2</div>
+        <h3>AI Analyzes &amp; Forecasts</h3>
+        <p>A blended Prophet + GBM model assembles 32+ features per symbol &mdash; candlestick patterns, technical indicators, sentiment, macro data &mdash; and generates 30-day price forecasts.</p>
+        <span class="step-pill am">Every 24 hours</span>
       </div>
-      <div class="step">
-        <div class="step-number">3</div>
-        <div class="step-title">You Decide</div>
-        <div class="step-desc">Review predictions with confidence tiers, screener results, portfolio P&amp;L, strategy backtest outcomes, and AI-generated buy/hold/sell signals. The portfolio advisor explains its reasoning.</div>
+      <div class="step-box">
+        <div class="step-circle s3">3</div>
+        <h3>You Decide</h3>
+        <p>Review predictions with confidence tiers, screener results, portfolio P&amp;L, strategy backtest outcomes, and AI-generated signals. The advisor explains its reasoning.</p>
+        <span class="step-pill sk">On demand</span>
       </div>
     </div>
   </div>
 </section>
 
-<!-- Tech stack -->
-<section class="tech-stack">
-  <div class="container">
+<div class="tech-strip">
+  <div class="tech-inner">
     <div class="tech-label">Built with</div>
-    <div class="tech-badges">
-      <span class="badge badge-backend">FastAPI</span>
-      <span class="badge badge-backend">SQLAlchemy 2.0</span>
-      <span class="badge badge-backend">Python 3.11</span>
-      <span class="badge badge-backend">yfinance</span>
-      <span class="badge badge-ml">Prophet</span>
-      <span class="badge badge-ml">scikit-learn</span>
-      <span class="badge badge-ml">ta-lib</span>
-      <span class="badge badge-ml">VADER Sentiment</span>
-      <span class="badge badge-frontend">React 19</span>
-      <span class="badge badge-frontend">TailwindCSS 4</span>
-      <span class="badge badge-frontend">TanStack Query</span>
-      <span class="badge badge-frontend">Recharts</span>
-      <span class="badge badge-infra">GCP Cloud Run</span>
-      <span class="badge badge-infra">Terraform</span>
-      <span class="badge badge-infra">Docker</span>
-      <span class="badge badge-infra">GitHub Actions</span>
+    <div class="badge-cloud">
+      <span class="badge em">FastAPI</span>
+      <span class="badge em">SQLAlchemy 2.0</span>
+      <span class="badge em">Python 3.11</span>
+      <span class="badge em">yfinance</span>
+      <span class="badge am">Prophet</span>
+      <span class="badge am">scikit-learn</span>
+      <span class="badge am">ta-lib</span>
+      <span class="badge am">VADER Sentiment</span>
+      <span class="badge sk">React 19</span>
+      <span class="badge sk">TailwindCSS 4</span>
+      <span class="badge sk">TanStack Query</span>
+      <span class="badge sk">Recharts</span>
+      <span class="badge vi">GCP Cloud Run</span>
+      <span class="badge vi">Terraform</span>
+      <span class="badge vi">Docker</span>
+      <span class="badge vi">GitHub Actions</span>
     </div>
+  </div>
+</div>
+
+<section id="quickstart">
+  <div class="section-inner">
+    <div class="section-label">Quick Start</div>
+    <div class="section-title">Running in under 5 minutes</div>
+    <p class="section-subtitle">Requires Python 3.11+, Node 20+, and ta-lib (<code style="background:var(--emerald-light);color:#065f46;padding:2px 6px;border-radius:4px;font-size:0.85em;">brew install ta-lib</code> on macOS).</p>
+    <div class="qs-steps">
+      <div class="qs-step">
+        <div class="qs-num">1</div>
+        <div class="qs-body"><h4>Clone the repository</h4><p>Pull the source code and enter the project directory.</p></div>
+      </div>
+      <div class="qs-step">
+        <div class="qs-num">2</div>
+        <div class="qs-body"><h4>Configure environment</h4><p>Copy the example env file. The only required variable to get started is <code style="font-size:0.9em;">JWT_SECRET_KEY</code>.</p></div>
+      </div>
+      <div class="qs-step">
+        <div class="qs-num">3</div>
+        <div class="qs-body"><h4>Start the application</h4><p>The <code style="font-size:0.9em;">start.sh</code> script boots both backend and frontend. Default login is <code style="font-size:0.9em;">admin / changeme</code>.</p></div>
+      </div>
+    </div>
+    <pre><span class="cc"># 1. Clone</span>
+<span class="cmd">git clone</span> <span class="url">https://github.com/rupakc/stocksense.git</span>
+<span class="cmd">cd</span> stocksense
+
+<span class="cc"># 2. Configure</span>
+<span class="cmd">cp</span> .env.example .env
+<span class="cc">#    Set JWT_SECRET_KEY (required)</span>
+
+<span class="cc"># 3. Run</span>
+<span class="cmd">./start.sh</span>
+
+<span class="cc"># Backend API  → </span><span class="url">http://localhost:8000</span>
+<span class="cc"># Frontend     → </span><span class="url">http://localhost:5173</span>
+<span class="cc"># API docs     → </span><span class="url">http://localhost:8000/docs</span>
+<span class="cc"># Login        → admin / changeme</span></pre>
+    <p style="margin-top:1.25rem;color:var(--text-muted);font-size:0.9rem;">
+      Full installation guide including ta-lib setup and GCP deployment in the
+      <a href="https://github.com/rupakc/stocksense/wiki/Setup-and-Installation">project wiki</a>.
+    </p>
   </div>
 </section>
 
-<!-- Quick start -->
-<section class="quickstart">
-  <div class="container">
-    <p class="section-label">Quick Start</p>
-    <h2 class="section-title">Running in under 5 minutes</h2>
-    <p class="section-subtitle">Requires Python 3.11+, Node 20+, and ta-lib (install via <code style="color:var(--accent);background:var(--accent-dim);padding:2px 6px;border-radius:4px;">brew install ta-lib</code> on macOS).</p>
-    <div class="divider"></div>
-    <div class="code-block">
-      <div class="code-header">
-        <div class="code-dot" style="background:#ff5f57"></div>
-        <div class="code-dot" style="background:#febc2e"></div>
-        <div class="code-dot" style="background:#28c840"></div>
-        <span style="color:#4a5e7a;font-size:0.78rem;margin-left:8px;font-family:monospace">bash</span>
-      </div>
-      <div class="code-body">
-        <pre><span class="code-comment"># Clone the repository</span>
-<span class="code-cmd">git</span> <span class="code-arg">clone</span> <span class="code-str">https://github.com/rupakc/stocksense.git</span>
-<span class="code-cmd">cd</span> stocksense
+<div class="cta-strip">
+  <h2>Ready to explore the markets?</h2>
+  <p>Clone the repo, point it at your watchlist, and let the models do the heavy lifting.</p>
+  <div class="hero-buttons">
+    <a class="btn btn-primary" href="https://github.com/rupakc/stocksense">&#9733; Star on GitHub</a>
+    <a class="btn btn-ghost" href="https://github.com/rupakc/stocksense/wiki">Full Documentation &rarr;</a>
+  </div>
+</div>
 
-<span class="code-comment"># Copy and configure environment variables</span>
-<span class="code-cmd">cp</span> .env.example .env
-<span class="code-comment"># Edit .env — set JWT_SECRET_KEY at minimum</span>
-
-<span class="code-comment"># Start backend + frontend with a single command</span>
-<span class="code-cmd">./start.sh</span>
-
-<span class="code-comment"># Backend API:  http://localhost:8000</span>
-<span class="code-comment"># Frontend:     http://localhost:5173</span>
-<span class="code-comment"># API docs:     http://localhost:8000/docs</span>
-<span class="code-comment"># Default login: admin / changeme</span></pre>
-      </div>
-    </div>
-    <div style="margin-top:20px;text-align:center;">
-      <a href="https://github.com/rupakc/stocksense/wiki/Setup-and-Installation" class="btn btn-outline">
-        Full installation guide &rarr;
+<section>
+  <div class="section-inner">
+    <div class="section-label">Resources</div>
+    <div class="section-title">Where to go next</div>
+    <p class="section-subtitle">Everything you need to understand, extend, and deploy StockSense.</p>
+    <div class="links-grid">
+      <a class="link-card" href="https://github.com/rupakc/stocksense">
+        <span class="link-card-label">Source</span>
+        <span class="link-card-title">GitHub Repository</span>
+        <span class="link-card-desc">Browse the code, open issues, submit pull requests.</span>
+      </a>
+      <a class="link-card" href="https://github.com/rupakc/stocksense/wiki">
+        <span class="link-card-label">Documentation</span>
+        <span class="link-card-title">Project Wiki</span>
+        <span class="link-card-desc">Architecture, setup guide, API reference, deployment runbook.</span>
+      </a>
+      <a class="link-card" href="https://github.com/rupakc/stocksense/wiki/ML-Prediction-Pipeline">
+        <span class="link-card-label">Deep Dive</span>
+        <span class="link-card-title">ML Prediction Pipeline</span>
+        <span class="link-card-desc">Feature engineering, Prophet + GBM ensemble, retraining schedule.</span>
+      </a>
+      <a class="link-card" href="https://github.com/rupakc/stocksense/wiki/API-Reference">
+        <span class="link-card-label">Reference</span>
+        <span class="link-card-title">API Reference</span>
+        <span class="link-card-desc">All REST endpoints, authentication, request/response schemas.</span>
+      </a>
+      <a class="link-card" href="https://github.com/rupakc/stocksense/wiki/Portfolio-and-Tax">
+        <span class="link-card-label">Feature Guide</span>
+        <span class="link-card-title">Portfolio &amp; Tax</span>
+        <span class="link-card-desc">FIFO P&amp;L, LTCG exemptions, and tax-loss harvesting walkthrough.</span>
+      </a>
+      <a class="link-card" href="https://github.com/rupakc/stocksense/issues">
+        <span class="link-card-label">Community</span>
+        <span class="link-card-title">Open an Issue</span>
+        <span class="link-card-desc">Report a bug, request a feature, or start a discussion.</span>
       </a>
     </div>
   </div>
 </section>
 
-<!-- Footer -->
 <footer>
-  <div class="container">
-    <p>
-      Built with Python &amp; React &nbsp;|&nbsp;
-      <a href="https://github.com/rupakc/stocksense">GitHub</a> &nbsp;|&nbsp;
-      <a href="https://github.com/rupakc/stocksense/wiki">Documentation</a>
-    </p>
-    <p style="margin-top:10px;font-size:0.78rem;">
-      StockSense is an independent open-source project. Not affiliated with any exchange or financial institution.
-      Predictions are not financial advice.
-    </p>
+  <div class="footer-brand">
+    <span class="footer-brand-icon">&#x1F4C8;</span>
+    StockSense
   </div>
+  <p>Built with Python &amp; React &nbsp;&middot;&nbsp; <a href="https://github.com/rupakc/stocksense">GitHub</a> &nbsp;&middot;&nbsp; <a href="https://github.com/rupakc/stocksense/wiki">Documentation</a></p>
+  <p style="margin-top:0.5rem;font-size:0.78rem;">StockSense is an independent open-source project. Not affiliated with any exchange. Predictions are not financial advice.</p>
 </footer>
 
 </body>
