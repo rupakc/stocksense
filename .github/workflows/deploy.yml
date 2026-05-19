@@ -134,37 +134,22 @@ jobs:
             "gs://${{ secrets.GCP_PROJECT_ID }}-tf-state/terraform/state/default.tflock" \
             2>/dev/null || true
 
-      - name: Remove orphaned resources from Terraform state
-        working-directory: infrastructure/terraform
-        run: |
-          # Old module.secrets — Terraform deletes these secrets every run; remove from state
-          terraform state rm 'module.secrets.google_secret_manager_secret.secrets["jwt-secret-key"]'    2>/dev/null || true
-          terraform state rm 'module.secrets.google_secret_manager_secret.secrets["admin-password"]'    2>/dev/null || true
-          terraform state rm 'module.secrets.google_secret_manager_secret.secrets["anthropic-api-key"]' 2>/dev/null || true
-          # Old module.iam service account + role bindings
-          terraform state rm 'module.iam.google_service_account.deployer'                                                       2>/dev/null || true
-          terraform state rm 'module.iam.google_project_iam_member.deployer_roles["roles/artifactregistry.admin"]'              2>/dev/null || true
-          terraform state rm 'module.iam.google_project_iam_member.deployer_roles["roles/iam.serviceAccountUser"]'              2>/dev/null || true
-          terraform state rm 'module.iam.google_project_iam_member.deployer_roles["roles/run.admin"]'                           2>/dev/null || true
-          terraform state rm 'module.iam.google_project_iam_member.deployer_roles["roles/secretmanager.viewer"]'                2>/dev/null || true
-          terraform state rm 'module.iam.google_project_iam_member.deployer_roles["roles/storage.admin"]'                      2>/dev/null || true
-          # Old Artifact Registry repo (us-central1) — replaced by bootstrap gcloud step
-          terraform state rm 'module.artifact_registry.google_artifact_registry_repository.images'      2>/dev/null || true
-          # Old storage bucket from previous Terraform layout
-          terraform state rm 'module.storage.google_storage_bucket.sqlite_backup'                       2>/dev/null || true
-          # Old API enablement that is no longer in the current list
-          terraform state rm 'google_project_service.apis["storage-component.googleapis.com"]'          2>/dev/null || true
-
       - name: Terraform Validate
         run: terraform validate
         working-directory: infrastructure/terraform
 
-      - name: Terraform Plan
-        run: terraform plan -out=tfplan
-        working-directory: infrastructure/terraform
-
-      - name: Terraform Apply
-        run: terraform apply tfplan
+      - name: Terraform Apply (targeted — skip orphaned state modules)
+        run: |
+          terraform apply -auto-approve \
+            -target=google_project_service.apis \
+            -target=google_project_iam_member.deployer_sa_user \
+            -target=google_project_iam_member.compute_sa_secret_accessor \
+            -target=google_project_iam_member.compute_sa_storage_admin \
+            -target=time_sleep.iam_propagation \
+            -target=module.storage \
+            -target=module.backend_service \
+            -target=module.frontend_service \
+            -target=module.monitoring
         working-directory: infrastructure/terraform
 
       - name: Read deployment URLs
@@ -177,6 +162,7 @@ jobs:
       - name: Terraform Apply — wire CORS to real frontend URL
         run: |
           terraform apply -auto-approve \
+            -target=module.backend_service \
             -var 'cors_origins=["${{ steps.urls.outputs.frontend }}"]'
         working-directory: infrastructure/terraform
 
