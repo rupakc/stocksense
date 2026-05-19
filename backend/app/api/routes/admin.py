@@ -4,7 +4,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db, require_admin
@@ -149,6 +149,54 @@ async def admin_reset_password(
     await db.commit()
     logger.info("Admin '%s' reset password for user '%s'", _admin.username, user.username)
     return {"status": "password_reset", "user_id": user_id}
+
+
+@router.get("/training-status")
+async def training_status(
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """Return per-symbol training diagnostics for the admin watchlist."""
+    from app.api.routes.predictions import _training_symbols
+    from app.db.models import PredictionResult, StockPrice, WatchedSymbol
+
+    sym_result = await db.execute(
+        select(WatchedSymbol.symbol).where(
+            WatchedSymbol.user_id == admin.id,
+            WatchedSymbol.is_active == True,  # noqa: E712
+        )
+    )
+    symbols = [row[0] for row in sym_result.all()]
+
+    per_symbol = []
+    for sym in symbols:
+        price_count = (
+            await db.execute(select(func.count()).where(StockPrice.symbol == sym))
+        ).scalar() or 0
+
+        pred_row = (
+            await db.execute(
+                select(PredictionResult)
+                .where(PredictionResult.symbol == sym)
+                .order_by(PredictionResult.trained_at.desc())
+                .limit(1)
+            )
+        ).scalars().first()
+
+        per_symbol.append({
+            "symbol": sym,
+            "price_rows_in_db": price_count,
+            "is_training_now": sym in _training_symbols,
+            "last_trained_at": pred_row.trained_at.isoformat() if pred_row else None,
+            "model_name": pred_row.model_name if pred_row else None,
+            "mape": (pred_row.metrics or {}).get("mape") if pred_row else None,
+            "has_prediction": pred_row is not None,
+        })
+
+    return {
+        "currently_training": list(_training_symbols),
+        "symbols": per_symbol,
+    }
 
 
 @router.patch("/users/{user_id}", status_code=200)

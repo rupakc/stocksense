@@ -127,8 +127,28 @@ async def _train_symbol(symbol: str, horizon_days: int = 30) -> None:
     try:
         async with AsyncSessionLocal() as db:
             from app.services.market_data.nse_fetcher import NSEFetcher
+            from sqlalchemy import select, func
+            from app.db.models import StockPrice
+
             fetcher = NSEFetcher()
-            await fetcher.fetch_and_store(symbol, period="2y", db=db, force=True)
+            logger.info(f"[retrain] Fetching price data for {symbol} (period=2y)")
+            await fetcher.fetch_and_store(symbol, period="2y", db=db, force=False)
+
+            # Verify we have enough data before kicking off the slow Prophet fit
+            count_result = await db.execute(
+                select(func.count()).where(StockPrice.symbol == symbol)
+            )
+            row_count = count_result.scalar() or 0
+            logger.info(f"[retrain] {symbol}: {row_count} price rows in DB")
+
+            if row_count < 60:
+                logger.error(
+                    f"[retrain] {symbol}: only {row_count} rows in DB after fetch — "
+                    "yfinance may be rate-limited or the symbol is invalid; skipping training"
+                )
+                return
+
+            logger.info(f"[retrain] Starting Prophet+GBM training for {symbol} ({row_count} rows)")
             await predictor.train(symbol, horizon_days, db)
             logger.info(f"[retrain] Finished {symbol}")
     except asyncio.CancelledError:

@@ -115,6 +115,10 @@ class NSEFetcher:
             logger.warning(f"Timeout fetching history for {symbol}; skipping store")
             return
         if df.empty:
+            logger.warning(
+                f"[nse_fetcher] yfinance returned empty DataFrame for {symbol} "
+                f"(period={period}) — possible rate-limit or invalid symbol"
+            )
             return
 
         from app.db.models import StockPrice

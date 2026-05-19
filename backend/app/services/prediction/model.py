@@ -278,7 +278,7 @@ class PredictionService:
     # Core Prophet training
     # ------------------------------------------------------------------
 
-    def _make_prophet_model(self, feature_cols: list[str]):
+    def _make_prophet_model(self, feature_cols: list[str], uncertainty_samples: int = 100):
         from prophet import Prophet
         model = Prophet(
             daily_seasonality=False,
@@ -287,6 +287,7 @@ class PredictionService:
             changepoint_prior_scale=0.1,
             interval_width=0.90,
             seasonality_mode="additive",
+            uncertainty_samples=uncertainty_samples,
         )
         model.add_seasonality(name="quarterly", period=91.25, fourier_order=5)
         for col in feature_cols:
@@ -319,8 +320,8 @@ class PredictionService:
         train_part = train_df.iloc[:split]
         test_part  = train_df.iloc[split:]
 
-        # --- Walk-forward validation model (separate instance) ---
-        eval_model = self._make_prophet_model(feature_cols)
+        # --- Walk-forward validation model (no uncertainty intervals needed) ---
+        eval_model = self._make_prophet_model(feature_cols, uncertainty_samples=0)
         eval_model.fit(train_part)
         test_forecast = eval_model.predict(test_part[["ds"] + feature_cols])
         merged = test_part[["ds", "y"]].merge(
