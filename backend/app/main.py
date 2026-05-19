@@ -147,33 +147,44 @@ async def lifespan(app: FastAPI):
 
 
 async def _seed_admin_user() -> None:
-    """Ensure at least one admin account exists.
+    """Ensure the admin account exists and its password matches DEFAULT_PASSWORD.
 
-    If the default user was already seeded by _seed_default_user but without
-    is_admin=True, promote them rather than creating a duplicate.
+    Always syncs the hashed password from settings so the Secret Manager value
+    is the single source of truth — no stale hash can block login after a secret
+    rotation or a fresh deployment.
     """
     from sqlalchemy import select
     from app.db.models import User
     from app.core.security import hash_password
 
+    fresh_hash = hash_password(settings.default_password)
+
     async with AsyncSessionLocal() as db:
         result = await db.execute(select(User).where(User.is_admin == True).limit(1))  # noqa: E712
-        if result.scalar_one_or_none():
+        admin = result.scalar_one_or_none()
+
+        if admin:
+            # Always keep the stored hash in sync with the current secret value
+            admin.hashed_password = fresh_hash
+            admin.is_active = True
+            await db.commit()
+            logger.info(f"Admin '{admin.username}' password synced from DEFAULT_PASSWORD")
             return
 
-        # No admin yet — promote or create the default account
+        # No admin yet — promote an existing default user or create one from scratch
         existing = await db.execute(select(User).where(User.username == settings.default_username))
         user = existing.scalar_one_or_none()
         if user:
             user.is_admin = True
             user.is_first_login = False
             user.is_active = True
+            user.hashed_password = fresh_hash
             await db.commit()
             logger.info(f"Promoted '{settings.default_username}' to admin")
         else:
             admin_user = User(
                 username=settings.default_username,
-                hashed_password=hash_password(settings.default_password),
+                hashed_password=fresh_hash,
                 is_admin=True,
                 is_first_login=False,
                 is_active=True,
