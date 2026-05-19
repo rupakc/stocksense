@@ -147,14 +147,10 @@ async def lifespan(app: FastAPI):
 
 
 async def _seed_admin_user() -> None:
-    """Ensure the admin account exists and its password matches DEFAULT_PASSWORD.
-
-    Always syncs the hashed password from settings so the Secret Manager value
-    is the single source of truth — no stale hash can block login after a secret
-    rotation or a fresh deployment.
-    """
+    """Ensure the admin account exists, password matches DEFAULT_PASSWORD, and
+    the admin's watchlist has the default symbols so training can start."""
     from sqlalchemy import select
-    from app.db.models import User
+    from app.db.models import User, WatchedSymbol
     from app.core.security import hash_password
 
     fresh_hash = hash_password(settings.default_password)
@@ -164,34 +160,52 @@ async def _seed_admin_user() -> None:
         admin = result.scalar_one_or_none()
 
         if admin:
-            # Always keep the stored hash in sync with the current secret value
             admin.hashed_password = fresh_hash
             admin.is_active = True
             await db.commit()
             logger.info(f"Admin '{admin.username}' password synced from DEFAULT_PASSWORD")
-            return
-
-        # No admin yet — promote an existing default user or create one from scratch
-        existing = await db.execute(select(User).where(User.username == settings.default_username))
-        user = existing.scalar_one_or_none()
-        if user:
-            user.is_admin = True
-            user.is_first_login = False
-            user.is_active = True
-            user.hashed_password = fresh_hash
-            await db.commit()
-            logger.info(f"Promoted '{settings.default_username}' to admin")
         else:
-            admin_user = User(
-                username=settings.default_username,
-                hashed_password=fresh_hash,
-                is_admin=True,
-                is_first_login=False,
-                is_active=True,
-            )
-            db.add(admin_user)
+            existing = await db.execute(select(User).where(User.username == settings.default_username))
+            user = existing.scalar_one_or_none()
+            if user:
+                user.is_admin = True
+                user.is_first_login = False
+                user.is_active = True
+                user.hashed_password = fresh_hash
+                await db.commit()
+                admin = user
+                logger.info(f"Promoted '{settings.default_username}' to admin")
+            else:
+                admin = User(
+                    username=settings.default_username,
+                    hashed_password=fresh_hash,
+                    is_admin=True,
+                    is_first_login=False,
+                    is_active=True,
+                )
+                db.add(admin)
+                await db.commit()
+                logger.info(f"Seeded admin user '{settings.default_username}'")
+
+        # Ensure the admin watchlist has the default symbols so the training loop
+        # has something to work with immediately on first deployment.
+        await db.refresh(admin)
+        ws_check = await db.execute(
+            select(WatchedSymbol).where(WatchedSymbol.user_id == admin.id).limit(1)
+        )
+        if not ws_check.scalar_one_or_none():
+            for sym in settings.default_symbols:
+                exchange = "BSE" if sym.endswith(".BO") else "NSE"
+                db.add(WatchedSymbol(
+                    symbol=sym,
+                    exchange=exchange,
+                    user_id=admin.id,
+                    is_active=True,
+                ))
             await db.commit()
-            logger.info(f"Seeded admin user '{settings.default_username}'")
+            logger.info(
+                f"Seeded default watchlist ({len(settings.default_symbols)} symbols) for admin"
+            )
 
 
 app = FastAPI(

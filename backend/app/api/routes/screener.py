@@ -152,7 +152,14 @@ async def screen_stocks(
 
     async def fetch_limited(sym):
         async with sem:
-            return await asyncio.to_thread(_get_stock_metrics, sym)
+            try:
+                return await asyncio.wait_for(
+                    asyncio.to_thread(_get_stock_metrics, sym),
+                    timeout=20.0,
+                )
+            except asyncio.TimeoutError:
+                logger.warning(f"[screener] Timeout fetching metrics for {sym}")
+                return None
 
     results = await asyncio.gather(*(fetch_limited(s) for s in symbols_to_scan))
     stocks = [r for r in results if r]

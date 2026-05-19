@@ -97,12 +97,18 @@ async def compare_stocks(
     if len(sym_list) > 5:
         raise HTTPException(status_code=400, detail="Maximum 5 symbols")
 
-    loop = asyncio.get_event_loop()
     sem = asyncio.Semaphore(5)
 
     async def fetch(s):
         async with sem:
-            return await loop.run_in_executor(None, _get_comparison_data, s)
+            try:
+                return await asyncio.wait_for(
+                    asyncio.to_thread(_get_comparison_data, s),
+                    timeout=30.0,
+                )
+            except asyncio.TimeoutError:
+                logger.warning(f"[compare] Timeout fetching data for {s}")
+                return None
 
     results = await asyncio.gather(*(fetch(s) for s in sym_list))
     stocks = [r for r in results if r]

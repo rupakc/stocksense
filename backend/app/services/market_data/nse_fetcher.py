@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import math
 from datetime import datetime, timezone
@@ -62,22 +63,29 @@ class NSEFetcher:
             return None
 
     def fetch_history(self, symbol: str, period: str = "1y") -> pd.DataFrame:
-        try:
-            ticker = yf.Ticker(symbol)
-            df = ticker.history(period=period, auto_adjust=True)
-            if df.empty:
-                return pd.DataFrame()
-            df.index = df.index.tz_convert("UTC")
-            df.reset_index(inplace=True)
-            df.rename(columns={"Date": "timestamp_utc", "Open": "open", "High": "high",
-                                "Low": "low", "Close": "close", "Volume": "volume"}, inplace=True)
-            df["symbol"] = symbol
-            df = df[["symbol", "timestamp_utc", "open", "high", "low", "close", "volume"]]
-            df = df.dropna(subset=["open", "high", "low", "close"])
-            return df
-        except Exception as e:
-            logger.error(f"Error fetching history for {symbol}: {e}")
-            return pd.DataFrame()
+        import time
+        last_exc: Exception | None = None
+        for attempt in range(3):
+            try:
+                ticker = yf.Ticker(symbol)
+                df = ticker.history(period=period, auto_adjust=True)
+                if df.empty:
+                    return pd.DataFrame()
+                df.index = df.index.tz_convert("UTC")
+                df.reset_index(inplace=True)
+                df.rename(columns={
+                    "Date": "timestamp_utc", "Open": "open", "High": "high",
+                    "Low": "low", "Close": "close", "Volume": "volume",
+                }, inplace=True)
+                df["symbol"] = symbol
+                df = df[["symbol", "timestamp_utc", "open", "high", "low", "close", "volume"]]
+                return df.dropna(subset=["open", "high", "low", "close"])
+            except Exception as exc:
+                last_exc = exc
+                if attempt < 2:
+                    time.sleep(2 ** attempt)
+        logger.error(f"Error fetching history for {symbol} after 3 attempts: {last_exc}")
+        return pd.DataFrame()
 
     async def fetch_and_store(
         self, symbol: str, period: str = "1y", db: AsyncSession = None, *, force: bool = False,
@@ -98,7 +106,14 @@ class NSEFetcher:
                 if age < cfg.history_freshness_ttl:
                     return
 
-        df = self.fetch_history(symbol, period)
+        try:
+            df = await asyncio.wait_for(
+                asyncio.to_thread(self.fetch_history, symbol, period),
+                timeout=45.0,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(f"Timeout fetching history for {symbol}; skipping store")
+            return
         if df.empty:
             return
 

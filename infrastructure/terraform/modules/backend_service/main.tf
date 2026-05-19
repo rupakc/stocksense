@@ -15,6 +15,7 @@ resource "google_cloud_run_v2_service" "backend" {
 
   template {
     execution_environment = "EXECUTION_ENVIRONMENT_GEN2"
+    timeout               = "600s"
 
     scaling {
       min_instance_count = 0
