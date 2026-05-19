@@ -9,6 +9,8 @@ A full-stack Indian stock market monitoring and AI-powered prediction platform. 
 | **Frontend** | https://stocksense-frontend-2hrxgxqboa-ew.a.run.app |
 | **Backend API** | https://stocksense-backend-2hrxgxqboa-ew.a.run.app |
 | **API Docs** | https://stocksense-backend-2hrxgxqboa-ew.a.run.app/docs |
+| **GitHub Pages** | https://rupakc.github.io/stocksense/ |
+| **Wiki** | https://github.com/rupakc/stocksense/wiki |
 
 ---
 
