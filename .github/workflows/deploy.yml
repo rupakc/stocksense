@@ -128,19 +128,13 @@ jobs:
             -backend-config="prefix=terraform/state"
         working-directory: infrastructure/terraform
 
-      - name: Clear stale Terraform state lock
-        run: |
-          gcloud storage rm \
-            "gs://${{ secrets.GCP_PROJECT_ID }}-tf-state/terraform/state/default.tflock" \
-            2>/dev/null || true
-
       - name: Terraform Validate
         run: terraform validate
         working-directory: infrastructure/terraform
 
       - name: Terraform Apply (targeted — skip orphaned state modules)
         run: |
-          terraform apply -auto-approve \
+          terraform apply -auto-approve -lock=false \
             -target=google_project_service.apis \
             -target=google_project_iam_member.deployer_sa_user \
             -target=google_project_iam_member.compute_sa_secret_accessor \
@@ -161,7 +155,7 @@ jobs:
 
       - name: Terraform Apply — wire CORS to real frontend URL
         run: |
-          terraform apply -auto-approve \
+          terraform apply -auto-approve -lock=false \
             -target=module.backend_service \
             -var 'cors_origins=["${{ steps.urls.outputs.frontend }}"]'
         working-directory: infrastructure/terraform
