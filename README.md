@@ -2,6 +2,14 @@
 
 A full-stack Indian stock market monitoring and AI-powered prediction platform. Track NSE and NASDAQ equities, run ML-based price forecasts, analyse news sentiment, manage your portfolio, and set price alerts — all in one place.
 
+## Live App
+
+| Service | URL |
+|---------|-----|
+| **Frontend** | https://stocksense-frontend-2hrxgxqboa-ew.a.run.app |
+| **Backend API** | https://stocksense-backend-2hrxgxqboa-ew.a.run.app |
+| **API Docs** | https://stocksense-backend-2hrxgxqboa-ew.a.run.app/docs |
+
 ---
 
 ## Features
