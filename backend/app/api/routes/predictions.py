@@ -54,6 +54,18 @@ async def trigger_training(
     return {"message": f"Training started for {req.symbol}", "symbol": req.symbol}
 
 
+@router.post("/train-full", status_code=202)
+async def trigger_full_training(
+    req: TrainRequest,
+    background_tasks: BackgroundTasks,
+):
+    """Trigger full Prophet+GBM training for one symbol (slow — may take 10-30 min)."""
+    if req.symbol in _training_symbols:
+        return {"message": f"Training already in progress for {req.symbol}", "symbol": req.symbol}
+    background_tasks.add_task(_train_symbol_full, req.symbol, req.horizon_days)
+    return {"message": f"Full Prophet+GBM training started for {req.symbol}", "symbol": req.symbol}
+
+
 @router.post("/retrain-all", status_code=202)
 async def retrain_all(
     background_tasks: BackgroundTasks,
@@ -148,8 +160,8 @@ async def _train_symbol(symbol: str, horizon_days: int = 30) -> None:
                 )
                 return
 
-            logger.info(f"[retrain] Starting Prophet+GBM training for {symbol} ({row_count} rows)")
-            await predictor.train(symbol, horizon_days, db)
+            logger.info(f"[retrain] Starting GBM fast-training for {symbol} ({row_count} rows)")
+            await predictor.train_fast(symbol, horizon_days, db)
             logger.info(f"[retrain] Finished {symbol}")
     except asyncio.CancelledError:
         logger.warning(f"[retrain] Cancelled {symbol} (timeout or shutdown)")
@@ -158,4 +170,29 @@ async def _train_symbol(symbol: str, horizon_days: int = 30) -> None:
         logger.error(f"[retrain] Failed {symbol}: {exc}", exc_info=True)
     finally:
         # Always runs — even on CancelledError — so the set stays consistent
+        _training_symbols.discard(symbol)
+
+
+async def _train_symbol_full(symbol: str, horizon_days: int = 30) -> None:
+    """Full Prophet+GBM training (slow). Only called from /train-full endpoint."""
+    async with _training_lock:
+        if symbol in _training_symbols:
+            logger.info(f"[full-train] Skipping {symbol}, already training")
+            return
+        _training_symbols.add(symbol)
+
+    try:
+        async with AsyncSessionLocal() as db:
+            from app.services.market_data.nse_fetcher import NSEFetcher
+            fetcher = NSEFetcher()
+            await fetcher.fetch_and_store(symbol, period="2y", db=db, force=False)
+            logger.info(f"[full-train] Starting Prophet+GBM for {symbol}")
+            await predictor.train(symbol, horizon_days, db)
+            logger.info(f"[full-train] Finished {symbol}")
+    except asyncio.CancelledError:
+        logger.warning(f"[full-train] Cancelled {symbol}")
+        raise
+    except Exception as exc:
+        logger.error(f"[full-train] Failed {symbol}: {exc}", exc_info=True)
+    finally:
         _training_symbols.discard(symbol)

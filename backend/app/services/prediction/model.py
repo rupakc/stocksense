@@ -151,6 +151,88 @@ class PredictionService:
         return record
 
     # ------------------------------------------------------------------
+    # Fast training — GBM only, completes in < 60 s per symbol
+    # ------------------------------------------------------------------
+
+    async def train_fast(self, symbol: str, horizon_days: int, db: AsyncSession):
+        """Train a GBM-only model.
+
+        Prophet is intentionally skipped: it requires two full Stan fits
+        (eval + final) that can each take 5-15 min with 30+ regressors,
+        causing cascading asyncio.to_thread leaks and OOM kills on Cloud Run.
+        GBM produces a usable prediction in under 60 s; Prophet can be run
+        on demand via the /api/predictions/train endpoint.
+        """
+        from datetime import timedelta
+
+        builder = FeatureBuilder()
+        df = await builder.build(symbol, db)
+
+        if len(df) < 60:
+            raise ValueError(
+                f"Insufficient training data for {symbol}: "
+                f"{len(df)} rows, 60 minimum required"
+            )
+
+        feature_cols = builder._feature_columns(df)
+        logger.info(f"[fast-train] {symbol}: {len(df)} rows, {len(feature_cols)} features")
+
+        gbm_model, gbm_preds, metrics = await asyncio.to_thread(
+            self._train_gbm, df, feature_cols, horizon_days, builder
+        )
+
+        # Pair future prices with business dates
+        last_date = df["ds"].max()
+        future_dates = pd.bdate_range(
+            start=last_date + timedelta(days=1), periods=horizon_days
+        )
+        residual_band = metrics.get("rmse", metrics.get("mae", 10) * 1.5)
+        predictions = [
+            {
+                "date": dt.strftime("%Y-%m-%d"),
+                "predicted_close": round(float(p), 2),
+                "lower_bound": round(float(p) - residual_band, 2),
+                "upper_bound": round(float(p) + residual_band, 2),
+            }
+            for dt, p in zip(future_dates, gbm_preds)
+        ]
+
+        model_path = self._model_path(symbol)
+        await asyncio.to_thread(
+            joblib.dump,
+            {
+                "model": None,          # no Prophet in fast mode
+                "gbm_model": gbm_model,
+                "blend_info": None,
+                "builder": builder,
+                "features": feature_cols,
+                "residual_band": residual_band,
+            },
+            model_path,
+        )
+
+        from app.services.gcs_sync import get_gcs_sync
+        await asyncio.to_thread(get_gcs_sync().upload_model, model_path)
+
+        from app.db.models import PredictionResult
+        record = PredictionResult(
+            symbol=symbol,
+            model_name="gbm-fast",
+            trained_at=datetime.now(timezone.utc),
+            horizon_days=horizon_days,
+            predictions=predictions,
+            metrics=metrics,
+            features_used=feature_cols,
+        )
+        db.add(record)
+        await db.commit()
+        logger.info(
+            f"[fast-train] Saved for {symbol}: "
+            f"MAE={metrics['mae']:.2f}, MAPE={metrics['mape']:.2f}%"
+        )
+        return record
+
+    # ------------------------------------------------------------------
     # Inference
     # ------------------------------------------------------------------
 
@@ -193,10 +275,13 @@ class PredictionService:
             return None
 
         try:
+            from datetime import timedelta
             saved = await asyncio.to_thread(joblib.load, model_path)
             model = saved["model"]
             builder = saved["builder"]
             feature_cols = saved["features"]
+            gbm_model = saved.get("gbm_model")
+            blend_info = saved.get("blend_info")
 
             # Recompute all features with saved normalization; never re-fits the scaler
             train_df = await builder.build_for_inference(symbol, db)
@@ -208,12 +293,45 @@ class PredictionService:
                 if col not in train_df.columns:
                     train_df[col] = 0.0
 
+            # GBM-only model (saved by train_fast): no Prophet model on disk
+            if model is None and gbm_model is not None:
+                future_df = builder.get_future_features(train_df, horizon_days)
+                future_X = future_df.tail(horizon_days)[feature_cols].fillna(0.0).values
+                gbm_raw = [float(gbm_model.predict(r.reshape(1, -1))[0]) for r in future_X]
+                residual_band = saved.get("residual_band", 10.0)
+                last_date = train_df["ds"].max()
+                future_dates = pd.bdate_range(
+                    start=last_date + timedelta(days=1), periods=horizon_days
+                )
+                predictions = [
+                    {
+                        "date": dt.strftime("%Y-%m-%d"),
+                        "predicted_close": round(p, 2),
+                        "lower_bound": round(p - residual_band, 2),
+                        "upper_bound": round(p + residual_band, 2),
+                    }
+                    for dt, p in zip(future_dates, gbm_raw)
+                ]
+                logger.info(f"[disk-fallback] GBM-fast prediction for {symbol}")
+                return {
+                    "symbol": symbol,
+                    "model_name": "gbm-disk-fallback",
+                    "trained_at": datetime.fromtimestamp(
+                        os.path.getmtime(model_path), tz=timezone.utc
+                    ),
+                    "horizon_days": horizon_days,
+                    "predictions": predictions,
+                    "metrics": saved.get("metrics", {}),
+                    "confidence": self._confidence(
+                        (saved.get("metrics") or {}).get("mape", 99)
+                    ),
+                    "features_used": feature_cols,
+                }
+
             future = builder.get_future_features(train_df, horizon_days)
             forecast = await asyncio.to_thread(model.predict, future)
 
             tail = forecast.tail(horizon_days)
-            gbm_model = saved.get("gbm_model")
-            blend_info = saved.get("blend_info")
 
             if gbm_model is not None and blend_info is not None:
                 try:
@@ -405,7 +523,12 @@ class PredictionService:
         future_X = future_df.tail(horizon_days)[feature_cols].fillna(0.0).values
         gbm_preds = [float(gbm_full.predict(row.reshape(1, -1))[0]) for row in future_X]
 
-        return gbm_full, gbm_preds, {"mae": round(mae, 4), "mape": round(mape, 4)}
+        rmse = float(np.sqrt(np.mean((y_test - preds) ** 2)))
+        return gbm_full, gbm_preds, {
+            "mae": round(mae, 4),
+            "mape": round(mape, 4),
+            "rmse": round(rmse, 4),
+        }
 
     def _blend_predictions(self, prophet_preds, gbm_preds, prophet_mape, gbm_mape):
         total = prophet_mape + gbm_mape
