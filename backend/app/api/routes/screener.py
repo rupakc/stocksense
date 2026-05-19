@@ -2,7 +2,7 @@ import asyncio
 import logging
 import time
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from app.api.deps import get_current_user
 from app.db.models import User
 import yfinance as yf
@@ -159,7 +159,11 @@ async def screen_stocks(
     current_user: User = Depends(get_current_user),
 ):
     """Screen stocks by fundamental criteria across NSE, BSE, and NASDAQ."""
-    symbols_to_scan = _build_scan_universe(exchange.upper())
+    try:
+        symbols_to_scan = _build_scan_universe(exchange.upper())
+    except Exception as exc:
+        logger.error(f"[screener] Failed to build universe for {exchange}: {exc}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to build scan universe")
 
     # Fetch metrics in parallel with concurrency limit
     sem = asyncio.Semaphore(10)

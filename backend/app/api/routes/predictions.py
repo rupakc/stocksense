@@ -111,22 +111,31 @@ async def retrain_all(
 # ---------------------------------------------------------------------------
 
 async def _train_symbol(symbol: str, horizon_days: int = 30) -> None:
-    """Train one symbol with a fresh async session (safe for background tasks)."""
+    """Train one symbol with a fresh async session (safe for background tasks).
+
+    Uses _training_symbols as a guard inside a try/finally so cancellation
+    (e.g. from asyncio.wait_for) always removes the symbol from the set.
+    """
     async with _training_lock:
         if symbol in _training_symbols:
             logger.info(f"[retrain] Skipping {symbol}, already training")
             return
         _training_symbols.add(symbol)
 
+    # _training_lock released — heavy work runs outside the lock.
+    # _training_symbols keeps other callers from duplicating the training.
     try:
         async with AsyncSessionLocal() as db:
             from app.services.market_data.nse_fetcher import NSEFetcher
             fetcher = NSEFetcher()
             await fetcher.fetch_and_store(symbol, period="2y", db=db, force=True)
-
             await predictor.train(symbol, horizon_days, db)
             logger.info(f"[retrain] Finished {symbol}")
+    except asyncio.CancelledError:
+        logger.warning(f"[retrain] Cancelled {symbol} (timeout or shutdown)")
+        raise  # re-raise so the scheduler's wait_for sees the cancellation
     except Exception as exc:
         logger.error(f"[retrain] Failed {symbol}: {exc}", exc_info=True)
     finally:
+        # Always runs — even on CancelledError — so the set stays consistent
         _training_symbols.discard(symbol)
