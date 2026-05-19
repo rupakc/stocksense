@@ -27,7 +27,10 @@ class NSEFetcher:
 
     def get_stock_info(self, symbol: str) -> dict | None:
         try:
-            ticker = yf.Ticker(symbol)
+            import requests as _req
+            _session = _req.Session()
+            _session.headers.update({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"})
+            ticker = yf.Ticker(symbol, session=_session)
             info = ticker.info
             return info if info.get("regularMarketPrice") else None
         except Exception as e:
@@ -36,7 +39,10 @@ class NSEFetcher:
 
     def get_live_quote(self, symbol: str) -> dict | None:
         try:
-            ticker = yf.Ticker(symbol)
+            import requests as _req
+            _session = _req.Session()
+            _session.headers.update({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"})
+            ticker = yf.Ticker(symbol, session=_session)
             info = ticker.info
             price = info.get("regularMarketPrice") or info.get("currentPrice")
             if not price:
@@ -64,10 +70,22 @@ class NSEFetcher:
 
     def fetch_history(self, symbol: str, period: str = "1y") -> pd.DataFrame:
         import time
+        import requests
+        session = requests.Session()
+        session.headers.update({
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            ),
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+        })
+        session.verify = True
         last_exc: Exception | None = None
         for attempt in range(3):
             try:
-                ticker = yf.Ticker(symbol)
+                ticker = yf.Ticker(symbol, session=session)
                 df = ticker.history(period=period, auto_adjust=True)
                 if df.empty:
                     return pd.DataFrame()

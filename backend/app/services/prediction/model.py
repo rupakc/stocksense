@@ -75,8 +75,8 @@ class PredictionService:
             f"{len(feature_cols)} features"
         )
 
-        model, prophet_predictions, prophet_metrics = self._train_prophet(
-            df, feature_cols, builder, horizon_days
+        model, prophet_predictions, prophet_metrics = await asyncio.to_thread(
+            self._train_prophet, df, feature_cols, builder, horizon_days
         )
 
         final_predictions = prophet_predictions
@@ -86,8 +86,8 @@ class PredictionService:
         saved_blend_info = None
 
         try:
-            gbm_model, gbm_preds, gbm_metrics = self._train_gbm(
-                df, feature_cols, horizon_days, builder
+            gbm_model, gbm_preds, gbm_metrics = await asyncio.to_thread(
+                self._train_gbm, df, feature_cols, horizon_days, builder
             )
             final_predictions, saved_blend_info = self._blend_predictions(
                 prophet_predictions, gbm_preds,
@@ -116,7 +116,8 @@ class PredictionService:
             final_metrics["gbm_error"] = str(exc)
 
         model_path = self._model_path(symbol)
-        joblib.dump(
+        await asyncio.to_thread(
+            joblib.dump,
             {
                 "model": model,
                 "gbm_model": gbm_model,
@@ -192,7 +193,7 @@ class PredictionService:
             return None
 
         try:
-            saved = joblib.load(model_path)
+            saved = await asyncio.to_thread(joblib.load, model_path)
             model = saved["model"]
             builder = saved["builder"]
             feature_cols = saved["features"]
@@ -208,7 +209,7 @@ class PredictionService:
                     train_df[col] = 0.0
 
             future = builder.get_future_features(train_df, horizon_days)
-            forecast = model.predict(future)
+            forecast = await asyncio.to_thread(model.predict, future)
 
             tail = forecast.tail(horizon_days)
             gbm_model = saved.get("gbm_model")

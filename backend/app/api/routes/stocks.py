@@ -108,7 +108,8 @@ async def remove_from_watchlist(
 @router.get("/quote/{symbol}", response_model=StockQuote)
 async def get_quote(symbol: str):
     """Get real-time (15-min delayed) quote for a symbol."""
-    quote = fetcher.get_live_quote(symbol)
+    import asyncio
+    quote = await asyncio.to_thread(fetcher.get_live_quote, symbol)
     if not quote:
         raise HTTPException(status_code=404, detail=f"Could not fetch quote for {symbol}")
     return quote

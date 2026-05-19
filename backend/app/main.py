@@ -49,7 +49,7 @@ async def _daily_training_loop() -> None:
         await asyncio.sleep(RETRAIN_INTERVAL.total_seconds())
 
 
-_TRAIN_SEMAPHORE = asyncio.Semaphore(3)
+_TRAIN_SEMAPHORE = asyncio.Semaphore(1)
 _TRAIN_TIMEOUT = 30 * 60  # 30 minutes
 
 
