@@ -73,6 +73,14 @@ jobs:
           upsert_secret "jwt-secret-key"           "${{ secrets.JWT_SECRET_KEY }}"
           upsert_secret "stocksense-admin-password" "${{ secrets.STOCKSENSE_ADMIN_PASSWORD }}"
 
+      - name: Empty legacy sqlite-backup bucket so Terraform can delete it
+        run: |
+          BUCKET="${{ secrets.GCP_PROJECT_ID }}-sqlite-backup"
+          if gcloud storage buckets describe "gs://$BUCKET" \
+               --project=${{ secrets.GCP_PROJECT_ID }} &>/dev/null; then
+            gcloud storage rm --recursive "gs://$BUCKET/**" 2>/dev/null || true
+          fi
+
   push-images:
     runs-on: ubuntu-latest
     needs: bootstrap
@@ -131,6 +139,22 @@ jobs:
       - name: Terraform Validate
         run: terraform validate
         working-directory: infrastructure/terraform
+
+      - name: Remove orphaned state entries
+        working-directory: infrastructure/terraform
+        run: |
+          terraform state rm -lock=false 'module.storage.google_storage_bucket.sqlite_backup'   2>/dev/null || true
+          terraform state rm -lock=false 'module.secrets.google_secret_manager_secret.secrets["jwt-secret-key"]'    2>/dev/null || true
+          terraform state rm -lock=false 'module.secrets.google_secret_manager_secret.secrets["admin-password"]'    2>/dev/null || true
+          terraform state rm -lock=false 'module.secrets.google_secret_manager_secret.secrets["anthropic-api-key"]' 2>/dev/null || true
+          terraform state rm -lock=false 'module.iam.google_service_account.deployer'           2>/dev/null || true
+          terraform state rm -lock=false 'module.iam.google_project_iam_member.deployer_roles["roles/artifactregistry.admin"]'  2>/dev/null || true
+          terraform state rm -lock=false 'module.iam.google_project_iam_member.deployer_roles["roles/iam.serviceAccountUser"]'  2>/dev/null || true
+          terraform state rm -lock=false 'module.iam.google_project_iam_member.deployer_roles["roles/run.admin"]'               2>/dev/null || true
+          terraform state rm -lock=false 'module.iam.google_project_iam_member.deployer_roles["roles/secretmanager.viewer"]'    2>/dev/null || true
+          terraform state rm -lock=false 'module.iam.google_project_iam_member.deployer_roles["roles/storage.admin"]'           2>/dev/null || true
+          terraform state rm -lock=false 'module.artifact_registry.google_artifact_registry_repository.images'                  2>/dev/null || true
+          terraform state rm -lock=false 'google_project_service.apis["storage-component.googleapis.com"]'                      2>/dev/null || true
 
       - name: Terraform Apply (targeted — skip orphaned state modules)
         run: |
