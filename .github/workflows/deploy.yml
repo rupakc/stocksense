@@ -128,6 +128,12 @@ jobs:
             -backend-config="prefix=terraform/state"
         working-directory: infrastructure/terraform
 
+      - name: Clear stale Terraform state lock
+        run: |
+          gcloud storage rm \
+            "gs://${{ secrets.GCP_PROJECT_ID }}-tf-state/terraform/state/default.tflock" \
+            2>/dev/null || true
+
       - name: Remove orphaned sqlite_backup bucket from Terraform state
         run: terraform state rm module.storage.google_storage_bucket.sqlite_backup || true
         working-directory: infrastructure/terraform
