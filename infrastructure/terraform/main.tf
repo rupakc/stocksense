@@ -74,8 +74,12 @@ resource "google_project_iam_member" "deployer_sa_user" {
 
 # Wait for IAM propagation before deploying Cloud Run services
 resource "time_sleep" "iam_propagation" {
-  create_duration = "30s"
-  depends_on      = [google_project_iam_member.deployer_sa_user]
+  create_duration = "60s"
+  depends_on      = [
+    google_project_iam_member.deployer_sa_user,
+    google_project_iam_member.compute_sa_secret_accessor,
+    google_project_iam_member.compute_sa_storage_admin,
+  ]
 }
 
 # Grant the default Compute SA the permissions Cloud Run needs at runtime

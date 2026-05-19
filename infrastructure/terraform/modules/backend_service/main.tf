@@ -83,9 +83,9 @@ resource "google_cloud_run_v2_service" "backend" {
         http_get {
           path = "/health"
         }
-        initial_delay_seconds = 15
-        period_seconds        = 5
-        failure_threshold     = 12
+        initial_delay_seconds = 30
+        period_seconds        = 10
+        failure_threshold     = 18
       }
     }
   }
