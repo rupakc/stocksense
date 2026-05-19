@@ -38,15 +38,15 @@ from app.services.prediction.feature_builder import FeatureBuilder
 
 logger = logging.getLogger(__name__)
 
-os.makedirs(settings.model_dir, exist_ok=True)
-
 
 class PredictionService:
 
     def _model_path(self, symbol: str) -> str:
         safe = re.sub(r'[^A-Za-z0-9_\-]', '_', symbol)
-        path = os.path.join(os.path.abspath(settings.model_dir), f"{safe}_prophet.joblib")
-        if not path.startswith(os.path.abspath(settings.model_dir)):
+        model_dir = os.path.abspath(settings.model_dir)
+        os.makedirs(model_dir, exist_ok=True)
+        path = os.path.join(model_dir, f"{safe}_prophet.joblib")
+        if not path.startswith(model_dir):
             raise ValueError(f"Invalid symbol for model path: {symbol}")
         return path
 

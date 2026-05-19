@@ -51,6 +51,10 @@ resource "google_cloud_run_v2_service" "backend" {
         name  = "CORS_ORIGINS"
         value = var.cors_origins
       }
+      env {
+        name  = "MODEL_DIR"
+        value = "/tmp/models"
+      }
 
       env {
         name = "JWT_SECRET_KEY"
