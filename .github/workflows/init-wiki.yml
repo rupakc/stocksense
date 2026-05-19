@@ -1,0 +1,45 @@
+name: Initialize Wiki
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/init-wiki.yml'
+  workflow_dispatch:
+
+jobs:
+  init-wiki:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout main repo
+        uses: actions/checkout@v4
+
+      - name: Create initial wiki page via API
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # GitHub's GITHUB_TOKEN has wiki write access
+          # Use the gollum API via the authenticated git push
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+
+          # Clone the wiki repo using the Actions token
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.wiki.git" wiki-repo 2>&1 || true
+
+          if [ ! -d "wiki-repo/.git" ]; then
+            mkdir -p wiki-repo
+            cd wiki-repo
+            git init
+            git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.wiki.git"
+            echo "# StockSense Wiki" > Home.md
+            echo "" >> Home.md
+            echo "Initializing wiki — full content being pushed." >> Home.md
+            git add Home.md
+            git commit -m "Initialize wiki"
+            git push -u origin HEAD:master 2>&1 || git push -u origin HEAD:main 2>&1
+          else
+            echo "Wiki already initialized"
+          fi

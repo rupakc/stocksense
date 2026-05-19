@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StockSense — AI-powered stock market intelligence</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0f1e;
+      --bg2: #0f1629;
+      --bg3: #141c35;
+      --accent: #00d4aa;
+      --accent2: #00b894;
+      --accent-dim: rgba(0, 212, 170, 0.12);
+      --accent-glow: rgba(0, 212, 170, 0.25);
+      --text: #e8edf5;
+      --text-muted: #7a8ba8;
+      --border: rgba(0, 212, 170, 0.18);
+      --card-bg: rgba(15, 22, 41, 0.85);
+      --radius: 12px;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      line-height: 1.6;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Grid background */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0, 212, 170, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 212, 170, 0.04) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Chart-line decorative element */
+    body::after {
+      content: "";
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 220px;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 220'%3E%3Cpolyline points='0,180 80,160 160,170 240,130 320,110 400,140 480,90 560,100 640,60 720,80 800,50 880,70 960,40 1040,55 1120,30 1200,45 1280,20 1360,35 1440,10' fill='none' stroke='rgba(0,212,170,0.12)' stroke-width='2'/%3E%3Cpolyline points='0,200 80,185 160,192 240,165 320,148 400,170 480,128 560,140 640,105 720,120 800,95 880,108 960,82 1040,96 1120,72 1200,85 1280,60 1360,75 1440,50' fill='none' stroke='rgba(0,212,170,0.06)' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat bottom center;
+      background-size: cover;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Nav */
+    nav {
+      padding: 20px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-logo {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: -0.5px;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 18px;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+      cursor: pointer;
+      border: none;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #0a0f1e;
+    }
+
+    .btn-primary:hover {
+      background: #00e6b8;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 20px var(--accent-glow);
+    }
+
+    .btn-outline {
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid var(--border);
+    }
+
+    .btn-outline:hover {
+      background: var(--accent-dim);
+      border-color: var(--accent);
+    }
+
+    /* Hero */
+    .hero {
+      padding: 90px 0 70px;
+      text-align: center;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      background: var(--accent-dim);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      font-size: 0.78rem;
+      color: var(--accent);
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 28px;
+    }
+
+    .hero-badge::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.4); }
+    }
+
+    .hero h1 {
+      font-size: clamp(2.4rem, 5vw, 3.8rem);
+      font-weight: 800;
+      line-height: 1.12;
+      letter-spacing: -1.5px;
+      color: var(--text);
+      margin-bottom: 12px;
+    }
+
+    .hero h1 .logo-emoji {
+      display: inline-block;
+      font-style: normal;
+    }
+
+    .hero h1 .accent { color: var(--accent); }
+
+    .hero-subtitle {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      margin-bottom: 28px;
+      font-weight: 400;
+    }
+
+    .hero-description {
+      max-width: 680px;
+      margin: 0 auto 40px;
+      font-size: 1.05rem;
+      color: #9aacbf;
+      line-height: 1.75;
+    }
+
+    .hero-cta {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    /* Section headings */
+    .section {
+      padding: 70px 0;
+    }
+
+    .section-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 10px;
+    }
+
+    .section-title {
+      font-size: clamp(1.6rem, 3vw, 2.1rem);
+      font-weight: 750;
+      letter-spacing: -0.5px;
+      margin-bottom: 12px;
+      color: var(--text);
+    }
+
+    .section-subtitle {
+      color: var(--text-muted);
+      font-size: 1rem;
+      margin-bottom: 48px;
+      max-width: 540px;
+    }
+
+    /* Feature grid */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+
+    @media (max-width: 768px) {
+      .features-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 1024px) and (min-width: 769px) {
+      .features-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .feature-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 24px;
+      transition: all 0.25s;
+      backdrop-filter: blur(8px);
+    }
+
+    .feature-card:hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 30px var(--accent-glow);
+      transform: translateY(-2px);
+    }
+
+    .feature-icon {
+      font-size: 1.8rem;
+      margin-bottom: 14px;
+      display: block;
+    }
+
+    .feature-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    .feature-desc {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    /* How it works */
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0;
+      position: relative;
+    }
+
+    @media (max-width: 768px) {
+      .steps { grid-template-columns: 1fr; gap: 20px; }
+      .steps::before { display: none; }
+    }
+
+    .steps::before {
+      content: "";
+      position: absolute;
+      top: 28px;
+      left: calc(16.67% + 24px);
+      right: calc(16.67% + 24px);
+      height: 1px;
+      background: linear-gradient(90deg, var(--accent), transparent 50%, var(--accent));
+      opacity: 0.3;
+    }
+
+    .step {
+      text-align: center;
+      padding: 0 24px;
+    }
+
+    .step-number {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: var(--accent-dim);
+      border: 1.5px solid var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: var(--accent);
+      margin: 0 auto 20px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .step-title {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+      color: var(--text);
+    }
+
+    .step-desc {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    /* Tech stack */
+    .tech-stack {
+      padding: 50px 0;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .tech-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    .tech-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+    }
+
+    .badge {
+      padding: 7px 16px;
+      border-radius: 100px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+
+    .badge-backend { background: rgba(0, 212, 170, 0.1); color: #00d4aa; border: 1px solid rgba(0, 212, 170, 0.3); }
+    .badge-frontend { background: rgba(97, 218, 251, 0.1); color: #61dafb; border: 1px solid rgba(97, 218, 251, 0.25); }
+    .badge-ml { background: rgba(255, 189, 68, 0.1); color: #ffbd44; border: 1px solid rgba(255, 189, 68, 0.25); }
+    .badge-infra { background: rgba(167, 139, 250, 0.1); color: #a78bfa; border: 1px solid rgba(167, 139, 250, 0.25); }
+
+    /* Quick start */
+    .quickstart {
+      padding: 60px 0;
+    }
+
+    .code-block {
+      background: #070c1a;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .code-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 18px;
+      background: rgba(0, 212, 170, 0.05);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .code-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .code-body {
+      padding: 24px;
+      overflow-x: auto;
+    }
+
+    .code-body pre {
+      font-family: "SF Mono", "Fira Code", "Cascadia Code", Consolas, monospace;
+      font-size: 0.855rem;
+      line-height: 1.75;
+      color: #c9d8eb;
+      white-space: pre;
+    }
+
+    .code-comment { color: #4a5e7a; }
+    .code-cmd { color: var(--accent); }
+    .code-arg { color: #e8c97d; }
+    .code-str { color: #90d4a8; }
+
+    /* Footer */
+    footer {
+      padding: 40px 0;
+      text-align: center;
+      border-top: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 0.875rem;
+    }
+
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    .divider {
+      width: 48px;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent), transparent);
+      border-radius: 2px;
+      margin-bottom: 32px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <nav>
+    <span class="nav-logo">&#x1F4C8; StockSense</span>
+    <div class="nav-links">
+      <a href="https://github.com/rupakc/stocksense" class="btn btn-outline">GitHub</a>
+      <a href="https://github.com/rupakc/stocksense/wiki" class="btn btn-primary">Wiki</a>
+    </div>
+  </nav>
+</div>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-badge">Live · NSE · BSE · NASDAQ</div>
+    <h1><span class="logo-emoji">&#x1F4C8;</span> <span class="accent">Stock</span>Sense</h1>
+    <p class="hero-subtitle">AI-powered stock market intelligence for NSE, BSE &amp; NASDAQ</p>
+    <p class="hero-description">
+      StockSense is a self-hosted, full-stack trading intelligence platform that combines live market data,
+      machine learning price forecasts, news sentiment analysis, and end-to-end portfolio management —
+      all in one application. Built for retail investors and quantitative hobbyists who want a private,
+      extensible alternative to premium terminal software.
+    </p>
+    <div class="hero-cta">
+      <a href="https://github.com/rupakc/stocksense" class="btn btn-primary">View on GitHub</a>
+      <a href="https://github.com/rupakc/stocksense/wiki" class="btn btn-outline">Read the Wiki</a>
+    </div>
+  </div>
+</section>
+
+<!-- Features -->
+<section class="section">
+  <div class="container">
+    <p class="section-label">Capabilities</p>
+    <h2 class="section-title">Everything you need to track markets</h2>
+    <p class="section-subtitle">Six core feature areas covering the full investment workflow, from data ingestion to tax reporting.</p>
+    <div class="divider"></div>
+    <div class="features-grid">
+
+      <div class="feature-card">
+        <span class="feature-icon">&#x1F9E0;</span>
+        <div class="feature-title">ML Price Forecasting</div>
+        <div class="feature-desc">Prophet + Gradient Boosting ensemble trained on 32+ features. Confidence-tiered predictions with inverse-MAPE blending. Auto-retrains every 24 hours per symbol.</div>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">&#x1F4F0;</span>
+        <div class="feature-title">News Sentiment Analysis</div>
+        <div class="feature-desc">Polls 6 RSS feeds every 15 minutes. VADER sentiment scoring with finance-specific lexicon. 7-day and 30-day rolling averages feed directly into the prediction model.</div>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">&#x1F4BC;</span>
+        <div class="feature-title">Portfolio Tracker</div>
+        <div class="feature-desc">FIFO cost basis calculation across all holdings. Realized and unrealized P&amp;L breakdown. AI-powered portfolio advisor scores each position for buy/hold/sell signals.</div>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">&#x26A1;</span>
+        <div class="feature-title">Live Market Data</div>
+        <div class="feature-desc">Real-time quotes and OHLCV history for NSE, BSE, and NASDAQ via yfinance. 15-minute cache with background polling during market hours (09:15–15:30 IST).</div>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">&#x1F4CA;</span>
+        <div class="feature-title">Strategy Backtesting</div>
+        <div class="feature-desc">Define signal conditions using any tracked indicator (RSI, MACD, Bollinger Bands). Run backtests against historical data. Review equity curve, Sharpe ratio, and trade log.</div>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">&#x1F4CB;</span>
+        <div class="feature-title">Tax Reports</div>
+        <div class="feature-desc">Capital gains classified as short-term or long-term under Indian tax rules. Automatic ₹1 lakh LTCG exemption. Tax-loss harvesting suggestions with potential tax savings calculated.</div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- How it works -->
+<section class="section" style="background: linear-gradient(180deg, transparent, rgba(0,212,170,0.03) 50%, transparent);">
+  <div class="container">
+    <p class="section-label">How It Works</p>
+    <h2 class="section-title">From raw data to actionable insight</h2>
+    <p class="section-subtitle">Three stages, fully automated. You make the decision; StockSense handles the analysis.</p>
+    <div class="divider"></div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-title">Connect Market Data</div>
+        <div class="step-desc">Autonomous data-fetcher agent pulls live OHLCV quotes and news from 6 RSS feeds every 15 minutes during market hours. Everything is normalized and stored in a local database.</div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-title">AI Analyzes &amp; Forecasts</div>
+        <div class="step-desc">A blended Prophet + GBM model assembles 32+ features per symbol — candlestick patterns, technical indicators, sentiment, macro data, and index returns — and generates 30-day price forecasts.</div>
+      </div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-title">You Decide</div>
+        <div class="step-desc">Review predictions with confidence tiers, screener results, portfolio P&amp;L, strategy backtest outcomes, and AI-generated buy/hold/sell signals. The portfolio advisor explains its reasoning.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Tech stack -->
+<section class="tech-stack">
+  <div class="container">
+    <div class="tech-label">Built with</div>
+    <div class="tech-badges">
+      <span class="badge badge-backend">FastAPI</span>
+      <span class="badge badge-backend">SQLAlchemy 2.0</span>
+      <span class="badge badge-backend">Python 3.11</span>
+      <span class="badge badge-backend">yfinance</span>
+      <span class="badge badge-ml">Prophet</span>
+      <span class="badge badge-ml">scikit-learn</span>
+      <span class="badge badge-ml">ta-lib</span>
+      <span class="badge badge-ml">VADER Sentiment</span>
+      <span class="badge badge-frontend">React 19</span>
+      <span class="badge badge-frontend">TailwindCSS 4</span>
+      <span class="badge badge-frontend">TanStack Query</span>
+      <span class="badge badge-frontend">Recharts</span>
+      <span class="badge badge-infra">GCP Cloud Run</span>
+      <span class="badge badge-infra">Terraform</span>
+      <span class="badge badge-infra">Docker</span>
+      <span class="badge badge-infra">GitHub Actions</span>
+    </div>
+  </div>
+</section>
+
+<!-- Quick start -->
+<section class="quickstart">
+  <div class="container">
+    <p class="section-label">Quick Start</p>
+    <h2 class="section-title">Running in under 5 minutes</h2>
+    <p class="section-subtitle">Requires Python 3.11+, Node 20+, and ta-lib (install via <code style="color:var(--accent);background:var(--accent-dim);padding:2px 6px;border-radius:4px;">brew install ta-lib</code> on macOS).</p>
+    <div class="divider"></div>
+    <div class="code-block">
+      <div class="code-header">
+        <div class="code-dot" style="background:#ff5f57"></div>
+        <div class="code-dot" style="background:#febc2e"></div>
+        <div class="code-dot" style="background:#28c840"></div>
+        <span style="color:#4a5e7a;font-size:0.78rem;margin-left:8px;font-family:monospace">bash</span>
+      </div>
+      <div class="code-body">
+        <pre><span class="code-comment"># Clone the repository</span>
+<span class="code-cmd">git</span> <span class="code-arg">clone</span> <span class="code-str">https://github.com/rupakc/stocksense.git</span>
+<span class="code-cmd">cd</span> stocksense
+
+<span class="code-comment"># Copy and configure environment variables</span>
+<span class="code-cmd">cp</span> .env.example .env
+<span class="code-comment"># Edit .env — set JWT_SECRET_KEY at minimum</span>
+
+<span class="code-comment"># Start backend + frontend with a single command</span>
+<span class="code-cmd">./start.sh</span>
+
+<span class="code-comment"># Backend API:  http://localhost:8000</span>
+<span class="code-comment"># Frontend:     http://localhost:5173</span>
+<span class="code-comment"># API docs:     http://localhost:8000/docs</span>
+<span class="code-comment"># Default login: admin / changeme</span></pre>
+      </div>
+    </div>
+    <div style="margin-top:20px;text-align:center;">
+      <a href="https://github.com/rupakc/stocksense/wiki/Setup-and-Installation" class="btn btn-outline">
+        Full installation guide &rarr;
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <div class="container">
+    <p>
+      Built with Python &amp; React &nbsp;|&nbsp;
+      <a href="https://github.com/rupakc/stocksense">GitHub</a> &nbsp;|&nbsp;
+      <a href="https://github.com/rupakc/stocksense/wiki">Documentation</a>
+    </p>
+    <p style="margin-top:10px;font-size:0.78rem;">
+      StockSense is an independent open-source project. Not affiliated with any exchange or financial institution.
+      Predictions are not financial advice.
+    </p>
+  </div>
+</footer>
+
+</body>
+</html>
