@@ -25,90 +25,83 @@ if settings.jwt_secret_key == "CHANGE-ME-IN-ENV":
         stacklevel=2,
     )
 
-RETRAIN_INTERVAL = timedelta(hours=settings.prediction_max_age_hours)
+_RETRAIN_INTERVAL_SECONDS = 3600  # retrain every 1 hour
 
 
 def _ensure_utc(dt: datetime) -> datetime:
-    """Return a UTC-aware datetime, attaching UTC if the value is naive.
-
-    SQLite stores datetimes without timezone info; this normalises them so
-    comparisons against timezone.utc cutoffs are always safe.
-    """
+    """Return a UTC-aware datetime, attaching UTC if the value is naive."""
     return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
 
 
-async def _daily_training_loop() -> None:
-    """Train models for watchlist symbols with stale or missing predictions."""
-    # Wait for DB init + seed to complete before first scan
-    await asyncio.sleep(15)
-
-    while True:
-        try:
-            logger.info("[scheduler] Scanning for stale/missing predictions...")
-            await _retrain_stale_symbols()
-        except Exception as exc:
-            logger.error(f"[scheduler] Training loop error: {exc}", exc_info=True)
-        logger.info(f"[scheduler] Next training scan in {RETRAIN_INTERVAL}")
-        await asyncio.sleep(RETRAIN_INTERVAL.total_seconds())
-
-
 _TRAIN_SEMAPHORE = asyncio.Semaphore(1)
-_TRAIN_TIMEOUT = 30 * 60  # 30 minutes
+_TRAIN_TIMEOUT = 30 * 60  # 30 minutes per symbol
 
 
-async def _retrain_stale_symbols() -> None:
-    from sqlalchemy import func, select
-    from app.db.models import PredictionResult, WatchedSymbol
-
-    cutoff = datetime.now(timezone.utc) - RETRAIN_INTERVAL
+async def _get_admin_symbols() -> list[str]:
+    """Return all active watchlist symbols belonging to the admin user."""
+    from sqlalchemy import select
+    from app.db.models import User, WatchedSymbol
 
     async with AsyncSessionLocal() as db:
-        result = await db.execute(
-            select(WatchedSymbol.symbol).where(WatchedSymbol.is_active == True)  # noqa: E712
+        admin_row = await db.execute(
+            select(User).where(User.is_admin == True).limit(1)  # noqa: E712
         )
-        symbols = [row[0] for row in result.all()]
+        admin = admin_row.scalar_one_or_none()
+        if not admin:
+            logger.warning("[scheduler] No admin user found — skipping training")
+            return []
 
-        if not symbols:
-            return
-
-        # Fetch latest trained_at per symbol in one batch query
-        subq = (
-            select(
-                PredictionResult.symbol,
-                func.max(PredictionResult.trained_at).label("last_trained"),
+        sym_rows = await db.execute(
+            select(WatchedSymbol.symbol).where(
+                WatchedSymbol.user_id == admin.id,
+                WatchedSymbol.is_active == True,  # noqa: E712
             )
-            .group_by(PredictionResult.symbol)
-            .subquery()
         )
-        trained_result = await db.execute(select(subq))
-        trained_map = {r.symbol: r.last_trained for r in trained_result.all()}
+        return [r[0] for r in sym_rows.all()]
 
-    stale_symbols = [
-        s for s in symbols
-        if not trained_map.get(s) or _ensure_utc(trained_map[s]) < cutoff
-    ]
 
-    if not stale_symbols:
-        logger.info("[scheduler] All symbols are up to date — nothing to train")
+async def _train_admin_symbols() -> None:
+    """Train (or retrain) every symbol in the admin watchlist, one at a time."""
+    symbols = await _get_admin_symbols()
+    if not symbols:
+        logger.warning("[scheduler] Admin watchlist is empty — nothing to train")
         return
 
-    logger.info(f"[scheduler] Stale symbols to train: {stale_symbols}")
+    logger.info(f"[scheduler] Training {len(symbols)} symbol(s): {symbols}")
 
-    async def _train_limited(symbol: str) -> None:
+    async def _train_one(symbol: str) -> None:
         async with _TRAIN_SEMAPHORE:
             try:
-                logger.info(f"[scheduler] Starting training for {symbol}")
+                logger.info(f"[scheduler] ▶ Starting {symbol}")
                 await asyncio.wait_for(
                     predictions._train_symbol(symbol, 30),
                     timeout=_TRAIN_TIMEOUT,
                 )
-                logger.info(f"[scheduler] Completed training for {symbol}")
+                logger.info(f"[scheduler] ✓ Finished {symbol}")
             except asyncio.TimeoutError:
-                logger.error(f"[retrain] Timed out training {symbol} after {_TRAIN_TIMEOUT}s")
+                logger.error(f"[scheduler] ✗ Timeout {symbol} after {_TRAIN_TIMEOUT}s")
             except Exception as exc:
-                logger.error(f"[retrain] Failed {symbol}: {exc}", exc_info=True)
+                logger.error(f"[scheduler] ✗ Failed {symbol}: {exc}", exc_info=True)
 
-    await asyncio.gather(*[_train_limited(s) for s in stale_symbols])
+    await asyncio.gather(*[_train_one(s) for s in symbols])
+    logger.info("[scheduler] Training round complete")
+
+
+async def _training_loop() -> None:
+    """On startup: train all admin symbols immediately.
+    Then repeat every hour so predictions stay fresh.
+    """
+    # Allow DB init + admin seed to complete first
+    await asyncio.sleep(15)
+
+    while True:
+        try:
+            logger.info("[scheduler] === Training round started ===")
+            await _train_admin_symbols()
+        except Exception as exc:
+            logger.error(f"[scheduler] Training round failed: {exc}", exc_info=True)
+        logger.info(f"[scheduler] Next training round in {_RETRAIN_INTERVAL_SECONDS // 60} minutes")
+        await asyncio.sleep(_RETRAIN_INTERVAL_SECONDS)
 
 
 async def _periodic_db_backup(gcs, db_path: str) -> None:
@@ -135,7 +128,7 @@ async def lifespan(app: FastAPI):
     await asyncio.to_thread(gcs.download_models, settings.model_dir)
 
     # 4. Start background tasks
-    training_task = asyncio.create_task(_daily_training_loop())
+    training_task = asyncio.create_task(_training_loop())
     # Only run DB backup loop when GCS is configured — avoids pointless no-op wakeups
     backup_task = (
         asyncio.create_task(_periodic_db_backup(gcs, db_path))
