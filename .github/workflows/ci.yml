@@ -116,7 +116,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Hadolint — backend
-        uses: hadolint/hadolint-action@v3.1.0
+        uses: hadolint/hadolint-action@v3.3.0
         with:
           dockerfile: backend/Dockerfile
           config: .hadolint.yaml
@@ -124,7 +124,7 @@ jobs:
           output-file: hadolint-backend.sarif
           failure-threshold: warning
       - name: Hadolint — frontend
-        uses: hadolint/hadolint-action@v3.1.0
+        uses: hadolint/hadolint-action@v3.3.0
         with:
           dockerfile: frontend/Dockerfile
           config: .hadolint.yaml
