@@ -98,20 +98,29 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v2
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Configure Docker
         run: gcloud auth configure-docker europe-west1-docker.pkg.dev --quiet
 
-      - name: Build and push backend
-        run: |
-          REGISTRY="europe-west1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/stocksense"
-          docker build backend/ -t "$REGISTRY/backend:${{ github.sha }}"
-          docker push "$REGISTRY/backend:${{ github.sha }}"
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          push: true
+          tags: ${{ env.REGISTRY }}/backend:${{ github.sha }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,scope=backend,mode=max
 
-      - name: Build and push frontend
-        run: |
-          REGISTRY="europe-west1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/stocksense"
-          docker build frontend/ -t "$REGISTRY/frontend:${{ github.sha }}"
-          docker push "$REGISTRY/frontend:${{ github.sha }}"
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          push: true
+          tags: ${{ env.REGISTRY }}/frontend:${{ github.sha }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,scope=frontend,mode=max
 
   terraform:
     runs-on: ubuntu-latest
@@ -144,10 +153,11 @@ jobs:
         run: terraform validate
         working-directory: infrastructure/terraform
 
-      - name: Remove orphaned state entries
+      - name: Remove orphaned legacy state entries
         working-directory: infrastructure/terraform
         run: |
-          # Legacy module removals
+          # One-time removals for resources from deleted or renamed modules.
+          # Each entry is idempotent: fails silently if already gone.
           terraform state rm -lock=false 'module.storage.google_storage_bucket.sqlite_backup'   2>/dev/null || true
           terraform state rm -lock=false 'module.secrets.google_secret_manager_secret.secrets["jwt-secret-key"]'    2>/dev/null || true
           terraform state rm -lock=false 'module.secrets.google_secret_manager_secret.secrets["admin-password"]'    2>/dev/null || true
@@ -160,11 +170,6 @@ jobs:
           terraform state rm -lock=false 'module.iam.google_project_iam_member.deployer_roles["roles/storage.admin"]'           2>/dev/null || true
           terraform state rm -lock=false 'module.artifact_registry.google_artifact_registry_repository.images'                  2>/dev/null || true
           terraform state rm -lock=false 'google_project_service.apis["storage-component.googleapis.com"]'                      2>/dev/null || true
-          # Remove Cloud Run entries that drifted to point at travel-planner services
-          terraform state rm -lock=false 'module.backend_service.google_cloud_run_v2_service.backend'                 2>/dev/null || true
-          terraform state rm -lock=false 'module.backend_service.google_cloud_run_v2_service_iam_member.backend_public' 2>/dev/null || true
-          terraform state rm -lock=false 'module.frontend_service.google_cloud_run_v2_service.frontend'                2>/dev/null || true
-          terraform state rm -lock=false 'module.frontend_service.google_cloud_run_v2_service_iam_member.frontend_public' 2>/dev/null || true
 
       - name: Import existing GCP resources into Terraform state
         working-directory: infrastructure/terraform
@@ -172,7 +177,8 @@ jobs:
           PROJECT="${{ secrets.GCP_PROJECT_ID }}"
           REGION="europe-west1"
 
-          # Cloud Run services (guard against state drift from other projects)
+          # Cloud Run services — import so Terraform updates in-place (image change)
+          # rather than destroying + recreating. Fails silently if already in state.
           terraform import -lock=false \
             module.backend_service.google_cloud_run_v2_service.backend \
             "projects/${PROJECT}/locations/${REGION}/services/stocksense-backend" \
@@ -187,16 +193,18 @@ jobs:
             module.storage.google_storage_bucket.data \
             "${PROJECT}-stocksense-data" 2>/dev/null || true
 
-          # Logging metrics — unique names within project; create fails if already exists
+          # Logging metrics — unique names; create fails 409 if already exists in GCP.
+          # Use just the metric name (no project prefix) — matches the ID format the
+          # Google provider stores in state after creation.
           terraform import -lock=false \
             module.monitoring.google_logging_metric.api_request_count \
-            "${PROJECT}/stocksense_api_request_count" 2>/dev/null || true
+            "stocksense_api_request_count" 2>/dev/null || true
           terraform import -lock=false \
             module.monitoring.google_logging_metric.training_skip \
-            "${PROJECT}/stocksense_training_skip" 2>/dev/null || true
+            "stocksense_training_skip" 2>/dev/null || true
 
           # Monitoring resources with auto-generated IDs — best-effort import via gcloud.
-          # All wrapped in || true: if lookup fails, Terraform recreates them (duplicates allowed).
+          # All wrapped in || true: if lookup fails, Terraform recreates them (allowed).
           gcloud components install alpha --quiet 2>/dev/null || true
 
           NC_NAME=$(gcloud alpha monitoring channels list \
@@ -239,7 +247,29 @@ jobs:
             module.monitoring.google_monitoring_dashboard.main \
             "$DASH_NAME" 2>/dev/null || true
 
-      - name: Terraform Apply (targeted — skip orphaned state modules)
+      - name: Pre-apply safety net — delete un-importable logging metrics
+        working-directory: infrastructure/terraform
+        run: |
+          PROJECT="${{ secrets.GCP_PROJECT_ID }}"
+          # If a logging metric exists in GCP but wasn't imported into state (import
+          # can silently fail), Apply would try to CREATE it and get 409 AlreadyExists.
+          # Deleting the filter definition is safe — no historical data is stored in
+          # logging metric descriptors; data lives in Cloud Logging, not the metric.
+          for PAIR in \
+            "stocksense_api_request_count:module.monitoring.google_logging_metric.api_request_count" \
+            "stocksense_training_skip:module.monitoring.google_logging_metric.training_skip"; do
+            METRIC="${PAIR%%:*}"
+            TF_RESOURCE="${PAIR##*:}"
+            if terraform state show "$TF_RESOURCE" &>/dev/null; then
+              echo "$METRIC is in Terraform state — no action needed"
+            else
+              echo "$METRIC NOT in state — deleting from GCP so Terraform can recreate it"
+              gcloud logging metrics delete "$METRIC" \
+                --project="$PROJECT" --quiet 2>/dev/null || true
+            fi
+          done
+
+      - name: Terraform Apply
         run: |
           terraform apply -auto-approve -lock=false \
             -target=google_project_service.apis \
@@ -269,5 +299,11 @@ jobs:
 
       - name: Deployment summary
         run: |
+          echo "### Deployment complete" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | URL |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend | ${{ steps.urls.outputs.frontend }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend  | ${{ steps.urls.outputs.backend }} |"  >> $GITHUB_STEP_SUMMARY
+          echo ""
           echo "Frontend: ${{ steps.urls.outputs.frontend }}"
           echo "Backend:  ${{ steps.urls.outputs.backend }}"
