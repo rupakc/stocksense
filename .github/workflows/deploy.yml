@@ -162,12 +162,13 @@ jobs:
           terraform state rm -lock=false 'module.frontend_service.google_cloud_run_v2_service.frontend'                2>/dev/null || true
           terraform state rm -lock=false 'module.frontend_service.google_cloud_run_v2_service_iam_member.frontend_public' 2>/dev/null || true
 
-      - name: Re-import correct stocksense Cloud Run services
+      - name: Import existing GCP resources into Terraform state
         working-directory: infrastructure/terraform
         run: |
           PROJECT="${{ secrets.GCP_PROJECT_ID }}"
           REGION="europe-west1"
-          # Import existing stocksense services so Terraform updates them (not recreates)
+
+          # Cloud Run services (guard against state drift from other projects)
           terraform import -lock=false \
             module.backend_service.google_cloud_run_v2_service.backend \
             "projects/${PROJECT}/locations/${REGION}/services/stocksense-backend" \
@@ -176,6 +177,59 @@ jobs:
             module.frontend_service.google_cloud_run_v2_service.frontend \
             "projects/${PROJECT}/locations/${REGION}/services/stocksense-frontend" \
             2>/dev/null || true
+
+          # Storage data bucket — predictable name; will 409 if Terraform tries to recreate
+          terraform import -lock=false \
+            module.storage.google_storage_bucket.data \
+            "${PROJECT}-stocksense-data" 2>/dev/null || true
+
+          # Logging metric — unique name within project; create fails if already exists
+          terraform import -lock=false \
+            module.monitoring.google_logging_metric.api_request_count \
+            "${PROJECT}/stocksense_api_request_count" 2>/dev/null || true
+
+          # Monitoring resources with auto-generated IDs — best-effort import via gcloud.
+          # All wrapped in || true: if lookup fails, Terraform recreates them (duplicates allowed).
+          gcloud components install alpha --quiet 2>/dev/null || true
+
+          NC_NAME=$(gcloud alpha monitoring channels list \
+            --project="$PROJECT" \
+            --filter='displayName="StockSense Admin Email"' \
+            --format='value(name)' --limit=1 2>/dev/null || true)
+          [ -n "$NC_NAME" ] && terraform import -lock=false \
+            module.monitoring.google_monitoring_notification_channel.email \
+            "$NC_NAME" 2>/dev/null || true
+
+          UC_NAME=$(gcloud monitoring uptime-checks list \
+            --project="$PROJECT" \
+            --filter='displayName="StockSense Backend Health Check"' \
+            --format='value(name)' --limit=1 2>/dev/null || true)
+          [ -n "$UC_NAME" ] && terraform import -lock=false \
+            module.monitoring.google_monitoring_uptime_check_config.backend_health \
+            "$UC_NAME" 2>/dev/null || true
+
+          for ENTRY in \
+            "StockSense Backend Uptime Failure:uptime_failure" \
+            "StockSense High API Error Rate:high_error_rate" \
+            "StockSense High API Latency:high_latency"; do
+            DISPLAY="${ENTRY%%:*}"
+            TF_KEY="${ENTRY##*:}"
+            AP_NAME=$(gcloud alpha monitoring policies list \
+              --project="$PROJECT" \
+              --filter="displayName=\"$DISPLAY\"" \
+              --format='value(name)' --limit=1 2>/dev/null || true)
+            [ -n "$AP_NAME" ] && terraform import -lock=false \
+              "module.monitoring.google_monitoring_alert_policy.${TF_KEY}" \
+              "$AP_NAME" 2>/dev/null || true
+          done
+
+          DASH_NAME=$(gcloud monitoring dashboards list \
+            --project="$PROJECT" \
+            --filter='displayName="StockSense India — Production"' \
+            --format='value(name)' --limit=1 2>/dev/null || true)
+          [ -n "$DASH_NAME" ] && terraform import -lock=false \
+            module.monitoring.google_monitoring_dashboard.main \
+            "$DASH_NAME" 2>/dev/null || true
 
       - name: Terraform Apply (targeted — skip orphaned state modules)
         run: |
