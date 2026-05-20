@@ -179,7 +179,10 @@ export default function Screener() {
   const queryParams = useMemo(() => {
     const p = { exchange: globalExchange, sort_by: sortBy, limit: 50, ...filters }
     if (sector) p.sector = sector
-    if (mcapTier > 0) p.min_market_cap = MCAP_OPTIONS[mcapTier].value
+    if (mcapTier > 0) {
+      p.min_market_cap = MCAP_OPTIONS[mcapTier].value
+      if (MCAP_OPTIONS[mcapTier].max != null) p.max_market_cap = MCAP_OPTIONS[mcapTier].max
+    }
     if (maxPe) p.max_pe = parseFloat(maxPe)
     if (minDividend) p.min_dividend_yield = parseFloat(minDividend) / 100
     if (minRoe) p.min_roe = parseFloat(minRoe) / 100
@@ -619,21 +622,21 @@ function StockRow({ stock }) {
         {low !== null && high !== null ? (
           <div className="flex flex-col items-end gap-1">
             <div className="flex items-center gap-2 text-[11px] text-slate-500">
-              <span>{formatPrice(low)}</span>
+              <span>{formatPrice(low, stock.symbol)}</span>
               <div className="w-16 h-1.5 bg-slate-200 rounded-full relative overflow-hidden">
                 <div
                   className="absolute inset-y-0 left-0 bg-indigo-400 rounded-full"
                   style={{ width: `${rangePct}%` }}
                 />
               </div>
-              <span>{formatPrice(high)}</span>
+              <span>{formatPrice(high, stock.symbol)}</span>
             </div>
             {stock.pct_from_52w_high !== null && (
               <span className={clsx(
                 'text-[10px] font-medium',
                 Math.abs(stock.pct_from_52w_high) <= 5 ? 'text-emerald-600' : 'text-slate-400',
               )}>
-                {stock.pct_from_52w_high.toFixed(1)}% from high
+                {stock.pct_from_52w_high != null ? stock.pct_from_52w_high.toFixed(1) : '--'}% from high
               </span>
             )}
           </div>

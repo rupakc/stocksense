@@ -132,6 +132,7 @@ class Alert(Base):
     threshold: Mapped[float] = mapped_column(Float)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     triggered_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    triggered_value: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     user: Mapped["User"] = relationship()

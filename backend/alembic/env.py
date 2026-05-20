@@ -14,9 +14,8 @@ from app.db import models  # noqa: E402, F401 — register models
 
 config = context.config
 
-if not config.get_main_option("sqlalchemy.url"):
-    sync_url = settings.database_url.replace("+aiosqlite", "").replace("+asyncpg", "+psycopg2")
-    config.set_main_option("sqlalchemy.url", sync_url)
+sync_url = settings.database_url.replace("+aiosqlite", "").replace("+asyncpg", "+psycopg2")
+config.set_main_option("sqlalchemy.url", sync_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

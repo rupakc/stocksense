@@ -116,7 +116,7 @@ export default function Watchlist() {
   const add = useMutation({
     mutationFn: ({ symbol, exchange }) => addToWatchlist(symbol, exchange),
     onSuccess: () => {
-      qc.invalidateQueries(['watchlist'])
+      qc.invalidateQueries({ queryKey: ['watchlist'] })
       toast('Stock added to watchlist', 'success')
     },
     onError: (err) => toast(err?.response?.data?.detail || 'Could not add symbol', 'error'),
@@ -124,7 +124,7 @@ export default function Watchlist() {
   const remove = useMutation({
     mutationFn: removeFromWatchlist,
     onSuccess: () => {
-      qc.invalidateQueries(['watchlist'])
+      qc.invalidateQueries({ queryKey: ['watchlist'] })
       toast('Removed from watchlist', 'success')
     },
     onError: () => toast('Failed to remove stock', 'error'),

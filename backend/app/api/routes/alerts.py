@@ -106,7 +106,7 @@ async def get_triggered_alerts(
     return [
         TriggeredAlert(
             id=a.id, symbol=a.symbol, alert_type=a.alert_type,
-            threshold=a.threshold, current_value=a.threshold,
+            threshold=a.threshold, current_value=a.triggered_value if a.triggered_value is not None else a.threshold,
             triggered_at=a.triggered_at,
         )
         for a in alerts
@@ -161,6 +161,7 @@ async def check_alerts(
 
         if hit:
             alert.triggered_at = now
+            alert.triggered_value = current_val
             alert.is_active = False
             triggered.append(TriggeredAlert(
                 id=alert.id, symbol=alert.symbol, alert_type=alert.alert_type,
