@@ -218,7 +218,8 @@ jobs:
           for ENTRY in \
             "StockSense Backend Uptime Failure:uptime_failure" \
             "StockSense High API Error Rate:high_error_rate" \
-            "StockSense High API Latency:high_latency"; do
+            "StockSense High API Latency:high_latency" \
+            "StockSense Training Skips (possible yfinance rate-limit):training_skip"; do
             DISPLAY="${ENTRY%%:*}"
             TF_KEY="${ENTRY##*:}"
             AP_NAME=$(gcloud alpha monitoring policies list \
