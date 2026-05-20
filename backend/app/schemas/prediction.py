@@ -18,6 +18,7 @@ class PredictionOut(BaseModel):
     metrics: dict | None
     confidence: str  # "high" | "medium" | "low"
     features_used: list[str] = []
+    current_price: float | None = None
 
 
 class TrainRequest(BaseModel):

@@ -234,10 +234,13 @@ function PredictionCard({ symbol }) {
     )
   }
 
-  const lastPred  = pred.predictions?.slice(-1)[0]
-  const firstPred = pred.predictions?.[0]
-  const ret7d     = lastPred && firstPred
-    ? ((lastPred.predicted_close - firstPred.predicted_close) / firstPred.predicted_close * 100)
+  const lastPred     = pred.predictions?.slice(-1)[0]
+  const firstPred    = pred.predictions?.[0]
+  // Compare final predicted close against today's price (not day-1 prediction) for a
+  // meaningful projected-return figure. Fall back to firstPred if current_price is absent.
+  const currentPrice = pred.current_price ?? firstPred?.predicted_close
+  const ret7d        = lastPred && currentPrice
+    ? ((lastPred.predicted_close - currentPrice) / currentPrice * 100)
     : null
   const isUp = (ret7d ?? 0) >= 0
 

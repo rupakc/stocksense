@@ -3,6 +3,7 @@ import logging
 import time
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -35,10 +36,14 @@ async def get_prediction(
 
     if background_tasks and symbol not in _training_symbols:
         background_tasks.add_task(_train_symbol, symbol, horizon_days)
+        return JSONResponse(
+            status_code=202,
+            content={"detail": f"No prediction available yet for {symbol}. Training has been queued."},
+        )
 
     raise HTTPException(
         status_code=404,
-        detail=f"No prediction available yet for {symbol}. Training has been queued.",
+        detail=f"No prediction available yet for {symbol}.",
     )
 
 

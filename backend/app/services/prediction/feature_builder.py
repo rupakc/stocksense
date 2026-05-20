@@ -166,7 +166,10 @@ class FeatureBuilder:
         return df
 
     def get_future_features(self, train_df: pd.DataFrame, horizon_days: int) -> pd.DataFrame:
-        """Create a future DataFrame with extrapolated feature values."""
+        """Create a future DataFrame with extrapolated feature values.
+
+        Used only by the Prophet path — GBM uses get_recursive_future_predictions instead.
+        """
         last_date = train_df["ds"].max()
         future_dates = pd.bdate_range(start=last_date + timedelta(days=1), periods=horizon_days)
         future = pd.DataFrame({"ds": future_dates})
@@ -189,6 +192,89 @@ class FeatureBuilder:
                 future[col] = float(tail5[col].median()) if col in tail5 else 0.0
 
         return pd.concat([train_df[["ds"] + feature_cols], future], ignore_index=True)
+
+    def get_recursive_future_predictions(
+        self,
+        train_df: pd.DataFrame,
+        horizon_days: int,
+        gbm_model,
+        feature_cols: list[str],
+    ) -> list[float]:
+        """Generate future prices using recursive multi-step forecasting.
+
+        For each future step, technical indicators are recomputed from the
+        growing OHLCV buffer (which includes all previously predicted closes)
+        so that RSI, MACD, Bollinger Bands etc. evolve with the forecast rather
+        than being frozen at training-set medians — the root cause of the 0%
+        prediction bug where all 30 days received identical feature vectors.
+
+        Macro and sentiment features are frozen at their last normalised values
+        from the training set because they are not derivable from price alone.
+        """
+        # train_df has raw OHLCV cols (excluded from normalisation) + normalised feature cols
+        ohlcv_cols = ["ds", "y", "open", "high", "low", "close", "volume"]
+        ohlcv_buf = train_df[ohlcv_cols].copy().reset_index(drop=True)
+
+        # Determine which feature_cols are price-derived by running the feature
+        # extractor on a sample of the buffer and inspecting its output columns
+        sample_feat = self._compute_price_features_from_ohlcv(ohlcv_buf.head(60))
+        price_derived = set(self._feature_columns(sample_feat))
+
+        # Everything else is macro / sentiment — freeze at last normalised training value
+        frozen_cols = [c for c in feature_cols if c not in price_derived]
+        frozen_vals = {
+            col: float(train_df[col].iloc[-1]) if col in train_df.columns else 0.0
+            for col in frozen_cols
+        }
+
+        # Volume/gap/pattern features are unknowable in the future → zero
+        zero_future = {
+            "volume_ratio", "volume_momentum", "obv_pct_change", "ad_pct_change",
+            "gap", "doji_flag",
+        }
+
+        predictions: list[float] = []
+
+        for _ in range(horizon_days):
+            feat_df = self._compute_price_features_from_ohlcv(ohlcv_buf)
+            last_raw = feat_df.iloc[-1]
+
+            feat_vec = np.zeros(len(feature_cols))
+            for i, col in enumerate(feature_cols):
+                if col in frozen_cols:
+                    feat_vec[i] = frozen_vals[col]  # already normalised
+                elif col in zero_future or col.startswith(("sentiment_", "news_")):
+                    feat_vec[i] = 0.0
+                else:
+                    raw_val = float(last_raw[col]) if col in last_raw.index else 0.0
+                    mean, std = self._scaler_stats.get(col, (0.0, 1.0))
+                    feat_vec[i] = (raw_val - mean) / std
+
+            feat_vec = np.nan_to_num(feat_vec, nan=0.0, posinf=0.0, neginf=0.0)
+            pred_close = float(gbm_model.predict(feat_vec.reshape(1, -1))[0])
+            predictions.append(pred_close)
+
+            # Synthesise a low-volatility OHLCV row for the predicted day so the
+            # next iteration's technical indicators pick up the forecasted price
+            prev_close = float(ohlcv_buf["close"].iloc[-1])
+            recent_range = float((ohlcv_buf["high"] - ohlcv_buf["low"]).tail(5).mean())
+            mid = (prev_close + pred_close) / 2
+            syn_high = max(prev_close, pred_close, mid + recent_range / 2)
+            syn_low  = min(prev_close, pred_close, mid - recent_range / 2)
+            syn_vol  = float(ohlcv_buf["volume"].tail(5).mean())
+
+            new_row = pd.DataFrame([{
+                "ds":     ohlcv_buf["ds"].iloc[-1] + pd.Timedelta(days=1),
+                "y":      pred_close,
+                "open":   prev_close,
+                "high":   syn_high,
+                "low":    syn_low,
+                "close":  pred_close,
+                "volume": syn_vol,
+            }])
+            ohlcv_buf = pd.concat([ohlcv_buf, new_row], ignore_index=True)
+
+        return predictions
 
     # ------------------------------------------------------------------
     # Private: OHLCV + candlestick + technical features
@@ -216,6 +302,18 @@ class FeatureBuilder:
         } for r in rows])
         df["ds"] = pd.to_datetime(df["ds"]).dt.tz_localize(None)
         df = df.sort_values("ds").reset_index(drop=True)
+
+        return self._compute_price_features_from_ohlcv(df)
+
+    def _compute_price_features_from_ohlcv(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Compute all candlestick and technical indicator features from OHLCV data.
+
+        Input df must contain: ds, y, open, high, low, close, volume columns.
+        Returns df with all feature columns appended (no normalisation applied).
+        Called both at training time (via _load_price_features) and at inference
+        time for each recursive future step.
+        """
+        df = df.copy()
 
         o = df["open"].astype(float)
         h = df["high"].astype(float)
@@ -320,8 +418,6 @@ class FeatureBuilder:
         df["ad_pct_change"] = ad_line.pct_change(5).replace([np.inf, -np.inf], 0).fillna(0)
 
         # ── Ichimoku base line position — equilibrium proximity ────────
-        ichimoku_high_9 = h.rolling(9, min_periods=1).max()
-        ichimoku_low_9 = l.rolling(9, min_periods=1).min()
         ichimoku_high_26 = h.rolling(26, min_periods=1).max()
         ichimoku_low_26 = l.rolling(26, min_periods=1).min()
         base_line = (ichimoku_high_26 + ichimoku_low_26) / 2

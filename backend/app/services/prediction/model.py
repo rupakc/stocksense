@@ -196,7 +196,6 @@ class PredictionService:
             }
             for dt, p in zip(future_dates, gbm_preds)
         ]
-
         model_path = self._model_path(symbol)
         await asyncio.to_thread(
             joblib.dump,
@@ -254,7 +253,17 @@ class PredictionService:
         )
         row = result.scalars().first()
         if row:
-            return self._row_to_dict(row)
+            d = self._row_to_dict(row)
+            from app.db.models import StockPrice
+            price_result = await db.execute(
+                select(StockPrice.close)
+                .where(StockPrice.symbol == symbol)
+                .order_by(StockPrice.timestamp_utc.desc())
+                .limit(1)
+            )
+            p = price_result.scalar()
+            d["current_price"] = float(p) if p is not None else None
+            return d
 
         disk_pred = await self._predict_from_disk(symbol, horizon_days, db)
         if disk_pred:
@@ -295,9 +304,9 @@ class PredictionService:
 
             # GBM-only model (saved by train_fast): no Prophet model on disk
             if model is None and gbm_model is not None:
-                future_df = builder.get_future_features(train_df, horizon_days)
-                future_X = future_df.tail(horizon_days)[feature_cols].fillna(0.0).values
-                gbm_raw = [float(gbm_model.predict(r.reshape(1, -1))[0]) for r in future_X]
+                gbm_raw = builder.get_recursive_future_predictions(
+                    train_df, horizon_days, gbm_model, feature_cols
+                )
                 residual_band = saved.get("residual_band", 10.0)
                 last_date = train_df["ds"].max()
                 future_dates = pd.bdate_range(
@@ -312,6 +321,11 @@ class PredictionService:
                     }
                     for dt, p in zip(future_dates, gbm_raw)
                 ]
+                current_price = (
+                    float(train_df["close"].iloc[-1])
+                    if "close" in train_df.columns and len(train_df) > 0
+                    else None
+                )
                 logger.info(f"[disk-fallback] GBM-fast prediction for {symbol}")
                 return {
                     "symbol": symbol,
@@ -326,6 +340,7 @@ class PredictionService:
                         (saved.get("metrics") or {}).get("mape", 99)
                     ),
                     "features_used": feature_cols,
+                    "current_price": current_price,
                 }
 
             future = builder.get_future_features(train_df, horizon_days)
@@ -375,6 +390,11 @@ class PredictionService:
                 model_label = "prophet-disk-fallback"
 
             metrics = saved.get("metrics", {})
+            current_price = (
+                float(train_df["close"].iloc[-1])
+                if "close" in train_df.columns and len(train_df) > 0
+                else None
+            )
             logger.info(f"[disk-fallback] Generated {model_label} prediction for {symbol}")
             return {
                 "symbol": symbol,
@@ -387,6 +407,7 @@ class PredictionService:
                 "metrics": metrics,
                 "confidence": self._confidence(metrics.get("mape", 99)),
                 "features_used": feature_cols,
+                "current_price": current_price,
             }
         except Exception as exc:
             logger.warning(f"[disk-fallback] Failed for {symbol}: {exc}")
@@ -516,12 +537,12 @@ class PredictionService:
         )
         gbm_full.fit(X, y)
 
-        # Use the same future-feature extrapolation as Prophet so both models
-        # see consistent inputs; previously last_features was never updated,
-        # causing flat/constant GBM predictions across all horizon days.
-        future_df = builder.get_future_features(df, horizon_days)
-        future_X = future_df.tail(horizon_days)[feature_cols].fillna(0.0).values
-        gbm_preds = [float(gbm_full.predict(row.reshape(1, -1))[0]) for row in future_X]
+        # Recursive multi-step forecasting: each day's feature vector is recomputed
+        # from the growing OHLCV buffer (real history + previous predicted closes)
+        # so technical indicators evolve with the forecast rather than being frozen.
+        gbm_preds = builder.get_recursive_future_predictions(
+            df, horizon_days, gbm_full, feature_cols
+        )
 
         rmse = float(np.sqrt(np.mean((y_test - preds) ** 2)))
         return gbm_full, gbm_preds, {
@@ -568,14 +589,15 @@ class PredictionService:
 
     def _row_to_dict(self, row) -> dict:
         return {
-            "symbol":       row.symbol,
-            "model_name":   row.model_name,
-            "trained_at":   row.trained_at,
-            "horizon_days": row.horizon_days,
-            "predictions":  row.predictions,
-            "metrics":      row.metrics,
-            "confidence":   self._confidence(
+            "symbol":        row.symbol,
+            "model_name":    row.model_name,
+            "trained_at":    row.trained_at,
+            "horizon_days":  row.horizon_days,
+            "predictions":   row.predictions,
+            "metrics":       row.metrics,
+            "confidence":    self._confidence(
                 row.metrics.get("mape", 99) if row.metrics else 99
             ),
             "features_used": row.features_used,
+            "current_price": None,  # populated by get_latest() via live DB query
         }
