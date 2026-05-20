@@ -51,7 +51,7 @@ async def get_tax_report(
     unrealized = []
     total_stcg = 0
     total_ltcg = 0
-    total_unrealized = 0
+    total_unrealized_cost = 0
     today = date.today()
 
     for h in holdings:
@@ -107,7 +107,7 @@ async def get_tax_report(
                 "type": "LTCG" if is_long_term else "STCG",
                 "current_value_note": "Use current market price for unrealized P&L",
             })
-            total_unrealized += h.buy_price * h.quantity
+            total_unrealized_cost += h.buy_price * h.quantity
 
     # Tax calculations
     ltcg_taxable = max(0, total_ltcg - LTCG_EXEMPTION)
@@ -128,6 +128,7 @@ async def get_tax_report(
             "total_estimated_tax": round(stcg_tax + ltcg_tax, 2),
             "stcg_rate": f"{STCG_RATE*100}%",
             "ltcg_rate": f"{LTCG_RATE*100}%",
+            "total_unrealized_cost_basis": round(total_unrealized_cost, 2),
         },
         "stcg_transactions": stcg_entries,
         "ltcg_transactions": ltcg_entries,

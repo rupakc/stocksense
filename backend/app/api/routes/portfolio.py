@@ -100,7 +100,8 @@ async def get_risk_analysis(
         var_95 = float(np.percentile(ret, 5))
         var_99 = float(np.percentile(ret, 1))
         mean_ret = float(ret.mean())
-        sharpe = (mean_ret * 252) / ann_vol if ann_vol > 0 else 0
+        _RISK_FREE_ANNUAL = 0.07  # ~7% Indian T-bill rate
+        sharpe = ((mean_ret * 252) - _RISK_FREE_ANNUAL) / ann_vol if ann_vol > 0 else 0
 
         beta = None
         bench_ret = _pick_benchmark(sym)

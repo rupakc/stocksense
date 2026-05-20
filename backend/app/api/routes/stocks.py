@@ -301,7 +301,7 @@ def _safe_float(val):
     """Safely convert a value to float, returning None for NaN or invalid values."""
     try:
         f = float(val)
-        return None if (f != f) else round(f, 4)  # NaN check
+        return None if (f != f or math.isinf(f)) else round(f, 4)  # NaN/inf check
     except (ValueError, TypeError):
         return None
 

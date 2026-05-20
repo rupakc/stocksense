@@ -5,8 +5,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import get_current_user
 from app.db.database import get_db
-from app.db.models import WatchedSymbol
+from app.db.models import User, WatchedSymbol
 from app.schemas.strategy import (
     BacktestRequest,
     BacktestResult,
@@ -31,7 +32,11 @@ async def list_strategies():
 
 
 @router.get("/{strategy_id}/signals", response_model=StrategySignalsResponse)
-async def get_signals(strategy_id: str, db: AsyncSession = Depends(get_db)):
+async def get_signals(
+    strategy_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """Generate real-time trading signals for all watchlist stocks."""
     import asyncio
 
@@ -39,7 +44,10 @@ async def get_signals(strategy_id: str, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail=f"Strategy '{strategy_id}' not found")
 
     result = await db.execute(
-        select(WatchedSymbol.symbol).where(WatchedSymbol.is_active == True)
+        select(WatchedSymbol.symbol).where(
+            WatchedSymbol.is_active == True,
+            WatchedSymbol.user_id == current_user.id,
+        )
     )
     symbols = [row[0] for row in result.all()]
 

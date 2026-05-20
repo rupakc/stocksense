@@ -122,6 +122,7 @@ async def update_preferences(
 ):
     current_user.preferred_exchange = req.preferred_exchange
     await db.commit()
+    await db.refresh(current_user)
     return {"preferred_exchange": current_user.preferred_exchange}
 
 
@@ -137,4 +138,5 @@ async def change_password(
     current_user.hashed_password = hash_password(req.new_password)
     current_user.is_first_login = False
     await db.commit()
+    await db.refresh(current_user)
     return {"message": "Password updated successfully"}

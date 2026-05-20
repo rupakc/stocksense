@@ -3,7 +3,7 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,7 +16,7 @@ router = APIRouter()
 
 
 class CreateUserRequest(BaseModel):
-    username: str
+    username: str = Field(..., min_length=3, max_length=50)
     password: str
     email: str | None = None
     is_admin: bool = False
