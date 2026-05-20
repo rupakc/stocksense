@@ -7,7 +7,22 @@ on:
     branches: [main]
 
 jobs:
+  # Runs on every trigger (including main pushes) so GitHub always sees at
+  # least one completed job and does not mark the workflow run as "failure".
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: CI scope check
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "CI runs on feature branches and PRs only. Main is deployed via deploy.yml."
+          else
+            echo "Running full CI checks on ${{ github.ref }}"
+          fi
+
   lint-backend:
+    needs: guard
+    if: github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,8 +39,9 @@ jobs:
         working-directory: backend
 
   test-backend:
+    needs: guard
+    if: github.ref != 'refs/heads/main' && hashFiles('backend/tests/*.py') != ''
     runs-on: ubuntu-latest
-    if: ${{ hashFiles('backend/tests/*.py') != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -43,6 +59,8 @@ jobs:
           DEFAULT_PASSWORD: test-admin-pw
 
   lint-frontend:
+    needs: guard
+    if: github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -56,6 +74,8 @@ jobs:
         working-directory: frontend
 
   build-frontend:
+    needs: guard
+    if: github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -70,6 +90,8 @@ jobs:
 
   security-backend:
     name: Backend Security (Bandit + pip-audit)
+    needs: guard
+    if: github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -90,6 +112,8 @@ jobs:
 
   security-frontend:
     name: Frontend Security (npm audit)
+    needs: guard
+    if: github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -109,6 +133,8 @@ jobs:
 
   security-docker:
     name: Dockerfile Lint (Hadolint)
+    needs: guard
+    if: github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read

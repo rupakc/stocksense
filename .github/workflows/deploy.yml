@@ -157,7 +157,7 @@ jobs:
         working-directory: infrastructure/terraform
         run: |
           # One-time removals for resources from deleted or renamed modules.
-          # Each entry is idempotent: fails silently if already gone.
+          # Each is idempotent: fails silently if the entry no longer exists.
           terraform state rm -lock=false 'module.storage.google_storage_bucket.sqlite_backup'   2>/dev/null || true
           terraform state rm -lock=false 'module.secrets.google_secret_manager_secret.secrets["jwt-secret-key"]'    2>/dev/null || true
           terraform state rm -lock=false 'module.secrets.google_secret_manager_secret.secrets["admin-password"]'    2>/dev/null || true
@@ -171,40 +171,64 @@ jobs:
           terraform state rm -lock=false 'module.artifact_registry.google_artifact_registry_repository.images'                  2>/dev/null || true
           terraform state rm -lock=false 'google_project_service.apis["storage-component.googleapis.com"]'                      2>/dev/null || true
 
-      - name: Import existing GCP resources into Terraform state
+      - name: Sync Terraform state with GCP (verified imports)
         working-directory: infrastructure/terraform
         run: |
           PROJECT="${{ secrets.GCP_PROJECT_ID }}"
           REGION="europe-west1"
 
-          # Cloud Run services — import so Terraform updates in-place (image change)
-          # rather than destroying + recreating. Fails silently if already in state.
-          terraform import -lock=false \
+          # safe_import: check state → import → verify import landed in state.
+          # Returns 0 (resource is now in state) or 1 (resource is not in state).
+          # stdout+stderr from import are always shown (not silently discarded).
+          safe_import() {
+            local resource="$1" id="$2" label="$3"
+            if terraform state show "$resource" &>/dev/null 2>&1; then
+              echo "✓ $label: already in state"
+              return 0
+            fi
+            echo "→ $label: importing [$id]"
+            if terraform import -lock=false "$resource" "$id" 2>&1; then
+              if terraform state show "$resource" &>/dev/null 2>&1; then
+                echo "✓ $label: import verified in state"
+                return 0
+              fi
+              echo "⚠ $label: import ran but state verification failed (GCS write issue?)"
+            else
+              echo "→ $label: not in GCP or already managed — skipping (expected on first deploy)"
+            fi
+            return 1
+          }
+
+          # Cloud Run services — kept in state between deploys so Terraform
+          # does an UPDATE (image change ~25s) instead of DELETE+CREATE (~90s).
+          safe_import \
             module.backend_service.google_cloud_run_v2_service.backend \
             "projects/${PROJECT}/locations/${REGION}/services/stocksense-backend" \
-            2>/dev/null || true
-          terraform import -lock=false \
+            "backend Cloud Run service"
+          safe_import \
             module.frontend_service.google_cloud_run_v2_service.frontend \
             "projects/${PROJECT}/locations/${REGION}/services/stocksense-frontend" \
-            2>/dev/null || true
+            "frontend Cloud Run service"
 
-          # Storage data bucket — predictable name; will 409 if Terraform tries to recreate
-          terraform import -lock=false \
+          # Storage data bucket — data-bearing; import is critical (see safety net below).
+          safe_import \
             module.storage.google_storage_bucket.data \
-            "${PROJECT}-stocksense-data" 2>/dev/null || true
+            "${PROJECT}-stocksense-data" \
+            "data storage bucket"
 
-          # Logging metrics — unique names; create fails 409 if already exists in GCP.
-          # Use just the metric name (no project prefix) — matches the ID format the
-          # Google provider stores in state after creation.
-          terraform import -lock=false \
+          # Logging metrics — deterministic IDs; create fails 409 if already in GCP.
+          # Import ID is just the metric name (matches provider-stored ID format).
+          safe_import \
             module.monitoring.google_logging_metric.api_request_count \
-            "stocksense_api_request_count" 2>/dev/null || true
-          terraform import -lock=false \
+            "stocksense_api_request_count" \
+            "logging metric api_request_count"
+          safe_import \
             module.monitoring.google_logging_metric.training_skip \
-            "stocksense_training_skip" 2>/dev/null || true
+            "stocksense_training_skip" \
+            "logging metric training_skip"
 
-          # Monitoring resources with auto-generated IDs — best-effort import via gcloud.
-          # All wrapped in || true: if lookup fails, Terraform recreates them (allowed).
+          # Monitoring resources with auto-generated IDs — best-effort via gcloud.
+          # Duplicates are acceptable for monitoring; || true is intentional here.
           gcloud components install alpha --quiet 2>/dev/null || true
 
           NC_NAME=$(gcloud alpha monitoring channels list \
@@ -247,31 +271,101 @@ jobs:
             module.monitoring.google_monitoring_dashboard.main \
             "$DASH_NAME" 2>/dev/null || true
 
-      - name: Pre-apply safety net — delete un-importable logging metrics
+      - name: Pre-apply safety net
         working-directory: infrastructure/terraform
         run: |
           PROJECT="${{ secrets.GCP_PROJECT_ID }}"
-          # If a logging metric exists in GCP but wasn't imported into state (import
-          # can silently fail), Apply would try to CREATE it and get 409 AlreadyExists.
-          # Deleting the filter definition is safe — no historical data is stored in
-          # logging metric descriptors; data lives in Cloud Logging, not the metric.
+
+          # ── Logging metrics ─────────────────────────────────────────────────
+          # If not in state (import failed), delete from GCP so Terraform can
+          # create-and-own them cleanly. Metric descriptors carry no data.
           for PAIR in \
             "stocksense_api_request_count:module.monitoring.google_logging_metric.api_request_count" \
             "stocksense_training_skip:module.monitoring.google_logging_metric.training_skip"; do
             METRIC="${PAIR%%:*}"
             TF_RESOURCE="${PAIR##*:}"
-            if terraform state show "$TF_RESOURCE" &>/dev/null; then
-              echo "$METRIC is in Terraform state — no action needed"
+            if terraform state show "$TF_RESOURCE" &>/dev/null 2>&1; then
+              echo "✓ $METRIC: in state"
             else
-              echo "$METRIC NOT in state — deleting from GCP so Terraform can recreate it"
+              echo "⚠ $METRIC: NOT in state — deleting from GCP so Terraform can recreate"
               gcloud logging metrics delete "$METRIC" \
                 --project="$PROJECT" --quiet 2>/dev/null || true
             fi
           done
 
+          # ── Storage bucket ──────────────────────────────────────────────────
+          # Data-bearing: DO NOT delete. If it exists in GCP but not in state,
+          # fail loudly so the operator can manually re-import before data loss.
+          if ! terraform state show 'module.storage.google_storage_bucket.data' &>/dev/null 2>&1; then
+            BUCKET="${PROJECT}-stocksense-data"
+            if gcloud storage buckets describe "gs://$BUCKET" \
+                 --project="$PROJECT" &>/dev/null 2>&1; then
+              echo "::error::Storage bucket $BUCKET exists in GCP but is NOT in Terraform state."
+              echo "::error::State drift detected. Fix manually:"
+              echo "::error::  terraform import module.storage.google_storage_bucket.data $BUCKET"
+              exit 1
+            else
+              echo "→ Storage bucket: not in GCP yet — Terraform will create it (first deploy)"
+            fi
+          else
+            echo "✓ Storage bucket: in state"
+          fi
+
+          # ── Cloud Run services ──────────────────────────────────────────────
+          # Warn (but don't fail) if a service exists in GCP but not in state.
+          # Terraform will attempt CREATE → will 409 and fail loudly if so.
+          for SVC_PAIR in \
+            "module.backend_service.google_cloud_run_v2_service.backend:stocksense-backend" \
+            "module.frontend_service.google_cloud_run_v2_service.frontend:stocksense-frontend"; do
+            TF_RES="${SVC_PAIR%%:*}"
+            SVC="${SVC_PAIR##*:}"
+            if ! terraform state show "$TF_RES" &>/dev/null 2>&1; then
+              if gcloud run services describe "$SVC" \
+                   --region=europe-west1 --project="$PROJECT" &>/dev/null 2>&1; then
+                echo "::warning::$SVC exists in GCP but not in state (state drift)."
+                echo "::warning::If Apply fails with 409, re-run — the import step will fix it."
+              else
+                echo "→ $SVC: not in GCP yet (first deploy)"
+              fi
+            else
+              echo "✓ $SVC: in state"
+            fi
+          done
+
       - name: Terraform Apply
+        working-directory: infrastructure/terraform
         run: |
-          terraform apply -auto-approve -lock=false \
+          # run_apply: stream output AND capture for 409 detection.
+          # Retries once on transient failures; stops immediately on permanent conflicts.
+          run_apply() {
+            local attempt exit_code
+            for attempt in 1 2; do
+              set +e
+              terraform apply -auto-approve -lock=false "$@" 2>&1 | tee /tmp/tf_apply.txt
+              exit_code=${PIPESTATUS[0]}
+              set -e
+
+              if [ $exit_code -eq 0 ]; then
+                echo "✓ Terraform Apply succeeded (attempt $attempt/2)"
+                return 0
+              fi
+
+              if grep -qiE "409|AlreadyExists|already exists" /tmp/tf_apply.txt; then
+                echo "::error::409 conflict — a resource exists in GCP but was not imported."
+                echo "::error::Retrying will not help; fix the import step and redeploy."
+                return 1
+              fi
+
+              if [ $attempt -lt 2 ]; then
+                echo "⚠ Apply failed (attempt $attempt/2) — possible transient error, retrying in 30s"
+                sleep 30
+              fi
+            done
+            echo "::error::Terraform Apply failed after 2 attempts"
+            return 1
+          }
+
+          run_apply \
             -target=google_project_service.apis \
             -target=google_project_iam_member.deployer_sa_user \
             -target=google_project_iam_member.compute_sa_secret_accessor \
@@ -281,25 +375,101 @@ jobs:
             -target=module.backend_service \
             -target=module.frontend_service \
             -target=module.monitoring
-        working-directory: infrastructure/terraform
 
       - name: Read deployment URLs
         id: urls
-        run: |
-          echo "frontend=$(terraform output -raw frontend_url)" >> $GITHUB_OUTPUT
-          echo "backend=$(terraform output -raw backend_url)"  >> $GITHUB_OUTPUT
         working-directory: infrastructure/terraform
+        run: |
+          FRONTEND=$(terraform output -raw frontend_url 2>&1) || {
+            echo "::error::terraform output frontend_url failed: $FRONTEND"
+            exit 1
+          }
+          BACKEND=$(terraform output -raw backend_url 2>&1) || {
+            echo "::error::terraform output backend_url failed: $BACKEND"
+            exit 1
+          }
+          echo "frontend=$FRONTEND" >> $GITHUB_OUTPUT
+          echo "backend=$BACKEND"   >> $GITHUB_OUTPUT
+
+      - name: Validate deployment URLs
+        run: |
+          FRONTEND="${{ steps.urls.outputs.frontend }}"
+          BACKEND="${{ steps.urls.outputs.backend }}"
+          if [ -z "$FRONTEND" ] || [ -z "$BACKEND" ]; then
+            echo "::error::One or both deployment URLs are empty."
+            echo "::error::  Frontend: '$FRONTEND'"
+            echo "::error::  Backend:  '$BACKEND'"
+            echo "::error::The Apply may have partially failed. Check the Terraform Apply logs."
+            exit 1
+          fi
+          echo "✓ Frontend: $FRONTEND"
+          echo "✓ Backend:  $BACKEND"
 
       - name: Terraform Apply — wire CORS to real frontend URL
-        run: |
-          terraform apply -auto-approve -lock=false \
-            -target=module.backend_service \
-            -var 'cors_origins=["${{ steps.urls.outputs.frontend }}"]'
         working-directory: infrastructure/terraform
+        run: |
+          FRONTEND_URL="${{ steps.urls.outputs.frontend }}"
+
+          run_apply() {
+            local attempt exit_code
+            for attempt in 1 2; do
+              set +e
+              terraform apply -auto-approve -lock=false "$@" 2>&1 | tee /tmp/tf_apply_cors.txt
+              exit_code=${PIPESTATUS[0]}
+              set -e
+              if [ $exit_code -eq 0 ]; then
+                echo "✓ CORS Apply succeeded (attempt $attempt/2)"
+                return 0
+              fi
+              if grep -qiE "409|AlreadyExists|already exists" /tmp/tf_apply_cors.txt; then
+                echo "::error::409 conflict in CORS Apply — see logs above."
+                return 1
+              fi
+              [ $attempt -lt 2 ] && { echo "⚠ CORS Apply failed, retrying in 30s"; sleep 30; }
+            done
+            echo "::error::CORS Apply failed after 2 attempts"
+            return 1
+          }
+
+          run_apply \
+            -target=module.backend_service \
+            -var "cors_origins=[\"$FRONTEND_URL\"]"
+
+      - name: Post-deploy health check
+        run: |
+          BACKEND="${{ steps.urls.outputs.backend }}"
+          FRONTEND="${{ steps.urls.outputs.frontend }}"
+
+          # Backend: poll /health up to 4 minutes.
+          # Cloud Run worst-case startup: initial_delay(30s) + 18 probes × 10s = 210s.
+          echo "Waiting for backend /health to return 200…"
+          healthy=false
+          for i in $(seq 1 16); do
+            status=$(curl -sf -o /dev/null -w "%{http_code}" \
+              "$BACKEND/health" --max-time 10 2>/dev/null || echo "000")
+            if [ "$status" = "200" ]; then
+              echo "✓ Backend healthy (attempt $i/16)"
+              healthy=true
+              break
+            fi
+            echo "  Attempt $i/16: HTTP $status — waiting 15s…"
+            sleep 15
+          done
+          $healthy || { echo "::error::Backend did not become healthy within 4 minutes"; exit 1; }
+
+          # Frontend: single probe (nginx, should be instant after Cloud Run start)
+          status=$(curl -sf -o /dev/null -w "%{http_code}" \
+            "$FRONTEND/" --max-time 10 2>/dev/null || echo "000")
+          if [ "$status" = "200" ]; then
+            echo "✓ Frontend reachable (HTTP $status)"
+          else
+            echo "::warning::Frontend returned HTTP $status (may still be initialising)"
+          fi
 
       - name: Deployment summary
         run: |
-          echo "### Deployment complete" >> $GITHUB_STEP_SUMMARY
+          echo "### Deployment complete ✓" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Service | URL |" >> $GITHUB_STEP_SUMMARY
           echo "|---------|-----|" >> $GITHUB_STEP_SUMMARY
           echo "| Frontend | ${{ steps.urls.outputs.frontend }} |" >> $GITHUB_STEP_SUMMARY
@@ -307,3 +477,25 @@ jobs:
           echo ""
           echo "Frontend: ${{ steps.urls.outputs.frontend }}"
           echo "Backend:  ${{ steps.urls.outputs.backend }}"
+
+      - name: Diagnostics on failure
+        if: failure()
+        continue-on-error: true
+        working-directory: infrastructure/terraform
+        run: |
+          echo "=== Terraform state list ==="
+          terraform state list 2>/dev/null || echo "(state unreadable)"
+          echo ""
+          echo "=== Cloud Run revision status ==="
+          gcloud run revisions list \
+            --service=stocksense-backend \
+            --region=europe-west1 \
+            --project="${{ secrets.GCP_PROJECT_ID }}" \
+            --sort-by="~metadata.creationTimestamp" \
+            --format="table(metadata.name,status.conditions[0].type,status.conditions[0].status)" \
+            --limit=5 2>/dev/null || true
+          echo ""
+          echo "=== Last Terraform Apply output (tail) ==="
+          cat /tmp/tf_apply.txt 2>/dev/null | tail -50 || \
+            cat /tmp/tf_apply_cors.txt 2>/dev/null | tail -50 || \
+            echo "(no apply output captured)"
