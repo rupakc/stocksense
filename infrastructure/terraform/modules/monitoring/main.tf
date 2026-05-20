@@ -139,6 +139,45 @@ resource "google_logging_metric" "api_request_count" {
   }
 }
 
+resource "google_logging_metric" "training_skip" {
+  project = var.project_id
+  name    = "stocksense_training_skip"
+  filter  = <<-EOT
+    resource.type="cloud_run_revision"
+    resource.labels.service_name="stocksense-backend"
+    severity>=ERROR
+    (textPayload:"skipping training" OR jsonPayload.message:"skipping training")
+  EOT
+  metric_descriptor {
+    metric_kind = "DELTA"
+    value_type  = "INT64"
+  }
+}
+
+resource "google_monitoring_alert_policy" "training_skip" {
+  project      = var.project_id
+  display_name = "StockSense Training Skips (possible yfinance rate-limit)"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "3+ symbols skipped in 10 minutes"
+    condition_threshold {
+      filter          = "metric.type=\"logging.googleapis.com/user/stocksense_training_skip\" resource.type=\"cloud_run_revision\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = 2
+      duration        = "0s"
+      aggregations {
+        alignment_period     = "600s"
+        per_series_aligner   = "ALIGN_SUM"
+        cross_series_reducer = "REDUCE_SUM"
+      }
+    }
+  }
+
+  notification_channels = [google_monitoring_notification_channel.email.id]
+  alert_strategy { auto_close = "86400s" }
+}
+
 # ─── Dashboard ────────────────────────────────────────────────────────────────
 
 resource "google_monitoring_dashboard" "main" {

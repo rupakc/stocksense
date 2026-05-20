@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false   # queue — never run two terraform applies simultaneously
+
 env:
   REGISTRY: europe-west1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/stocksense
 
@@ -183,10 +187,13 @@ jobs:
             module.storage.google_storage_bucket.data \
             "${PROJECT}-stocksense-data" 2>/dev/null || true
 
-          # Logging metric — unique name within project; create fails if already exists
+          # Logging metrics — unique names within project; create fails if already exists
           terraform import -lock=false \
             module.monitoring.google_logging_metric.api_request_count \
             "${PROJECT}/stocksense_api_request_count" 2>/dev/null || true
+          terraform import -lock=false \
+            module.monitoring.google_logging_metric.training_skip \
+            "${PROJECT}/stocksense_training_skip" 2>/dev/null || true
 
           # Monitoring resources with auto-generated IDs — best-effort import via gcloud.
           # All wrapped in || true: if lookup fails, Terraform recreates them (duplicates allowed).

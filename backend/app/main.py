@@ -125,7 +125,14 @@ async def lifespan(app: FastAPI):
     await _seed_admin_user()
 
     # 3. Restore trained models from GCS
-    await asyncio.to_thread(gcs.download_models, settings.model_dir)
+    model_count = await asyncio.to_thread(gcs.download_models, settings.model_dir)
+    if gcs.enabled and model_count == 0:
+        logger.warning(
+            "[startup] No model files restored from GCS — "
+            "predictions will return 404 until the training loop completes"
+        )
+    elif model_count > 0:
+        logger.info(f"[startup] {model_count} model file(s) ready in {settings.model_dir}")
 
     # 4. Start background tasks
     training_task = asyncio.create_task(_training_loop())

@@ -1,0 +1,108 @@
+name: Health Check & Auto-Rollback
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"   # Every 5 minutes
+  workflow_dispatch:
+
+concurrency:
+  group: healthcheck
+  cancel-in-progress: true   # New check supersedes in-flight one
+
+jobs:
+  probe:
+    name: Probe backend
+    runs-on: ubuntu-latest
+    outputs:
+      healthy: ${{ steps.probe.outputs.healthy }}
+    steps:
+      - name: Probe /health (3 attempts × 15 s)
+        id: probe
+        run: |
+          for i in 1 2 3; do
+            STATUS=$(curl -sf -o /dev/null -w "%{http_code}" \
+              https://stocksense-backend-2hrxgxqboa-ew.a.run.app/health \
+              --max-time 10 2>/dev/null || echo "000")
+            echo "Probe $i: HTTP $STATUS"
+            if [ "$STATUS" = "200" ]; then
+              echo "healthy=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            [ "$i" -lt 3 ] && sleep 15
+          done
+          echo "healthy=false" >> "$GITHUB_OUTPUT"
+
+  rollback:
+    name: Rollback to previous revision
+    runs-on: ubuntu-latest
+    needs: probe
+    if: needs.probe.outputs.healthy == 'false'
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Roll back Cloud Run to previous revision
+        id: rollback
+        run: |
+          PROJECT="${{ secrets.GCP_PROJECT_ID }}"
+          REGION="europe-west1"
+          SERVICE="stocksense-backend"
+
+          # Revision currently serving 100% of traffic
+          CURRENT=$(gcloud run services describe "$SERVICE" \
+            --region="$REGION" --project="$PROJECT" \
+            --format='value(status.traffic[0].revisionName)' 2>/dev/null || true)
+
+          # Most recent revision that is NOT the current one
+          PREV=$(gcloud run revisions list \
+            --service="$SERVICE" --region="$REGION" --project="$PROJECT" \
+            --sort-by='~metadata.creationTimestamp' \
+            --format='value(metadata.name)' \
+            --limit=5 2>/dev/null | grep -v "^${CURRENT}$" | head -1 || true)
+
+          echo "current=${CURRENT}" >> "$GITHUB_OUTPUT"
+          echo "previous=${PREV}"   >> "$GITHUB_OUTPUT"
+
+          if [ -n "$PREV" ]; then
+            echo "Rolling back: $CURRENT → $PREV"
+            gcloud run services update-traffic "$SERVICE" \
+              --to-revisions="${PREV}=100" \
+              --region="$REGION" --project="$PROJECT"
+            echo "rolled_back=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No previous revision found — manual intervention required"
+            echo "rolled_back=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open GitHub issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const rolledBack = "${{ steps.rollback.outputs.rolled_back }}" === "true";
+            const current    = "${{ steps.rollback.outputs.current }}";
+            const previous   = "${{ steps.rollback.outputs.previous }}";
+            const runUrl     = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            const body = rolledBack
+              ? `**Backend health check failed 3 consecutive probes.**\n\n` +
+                `**Auto-rollback:** \`${current}\` → \`${previous}\`\n\n` +
+                `The previous revision is now serving traffic. Investigate why \`${current}\` degraded before re-deploying.\n\n` +
+                `[Health check run](${runUrl})`
+              : `**Backend health check failed 3 consecutive probes.**\n\n` +
+                `No previous revision was found — **manual intervention required**.\n\n` +
+                `[Health check run](${runUrl})`;
+
+            await github.rest.issues.create({
+              owner:  context.repo.owner,
+              repo:   context.repo.repo,
+              title:  `\u{1F6A8} Backend down${rolledBack ? " — auto-rollback to " + previous : " — no rollback target"}`,
+              body,
+              labels: ["incident"],
+            });
