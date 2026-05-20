@@ -55,17 +55,16 @@ jobs:
           REGION="europe-west1"
           SERVICE="stocksense-backend"
 
-          # Revision currently serving 100% of traffic
-          CURRENT=$(gcloud run services describe "$SERVICE" \
-            --region="$REGION" --project="$PROJECT" \
-            --format='value(status.traffic[0].revisionName)' 2>/dev/null || true)
-
-          # Most recent revision that is NOT the current one
-          PREV=$(gcloud run revisions list \
+          # List all revisions newest-first. Line 1 = current (most recently deployed).
+          # Line 2 = previous good revision. Works with both Cloud Run v1 and v2.
+          REVISIONS=$(gcloud run revisions list \
             --service="$SERVICE" --region="$REGION" --project="$PROJECT" \
             --sort-by='~metadata.creationTimestamp' \
             --format='value(metadata.name)' \
-            --limit=5 2>/dev/null | grep -v "^${CURRENT}$" | head -1 || true)
+            --limit=5 2>/dev/null || true)
+
+          CURRENT=$(echo "$REVISIONS" | sed -n '1p')
+          PREV=$(echo "$REVISIONS"    | sed -n '2p')
 
           echo "current=${CURRENT}" >> "$GITHUB_OUTPUT"
           echo "previous=${PREV}"   >> "$GITHUB_OUTPUT"
