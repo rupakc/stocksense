@@ -95,7 +95,7 @@ def _cache_key(
 ) -> str:
     params_str = json.dumps(params, sort_keys=True) if params else ""
     raw = f"{symbol}:{strategy_id}:{lookback_days}:{start_date}:{end_date}:{params_str}:{include_costs}"
-    return hashlib.md5(raw.encode()).hexdigest()
+    return hashlib.md5(raw.encode(), usedforsecurity=False).hexdigest()  # noqa: S324
 
 
 def _cache_get(key: str) -> dict | None:
