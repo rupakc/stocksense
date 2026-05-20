@@ -133,7 +133,7 @@ jobs:
         run: |
           terraform init \
             -backend-config="bucket=${{ secrets.GCP_PROJECT_ID }}-tf-state" \
-            -backend-config="prefix=terraform/state"
+            -backend-config="prefix=terraform/stocksense"
         working-directory: infrastructure/terraform
 
       - name: Terraform Validate
