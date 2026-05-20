@@ -143,6 +143,7 @@ jobs:
       - name: Remove orphaned state entries
         working-directory: infrastructure/terraform
         run: |
+          # Legacy module removals
           terraform state rm -lock=false 'module.storage.google_storage_bucket.sqlite_backup'   2>/dev/null || true
           terraform state rm -lock=false 'module.secrets.google_secret_manager_secret.secrets["jwt-secret-key"]'    2>/dev/null || true
           terraform state rm -lock=false 'module.secrets.google_secret_manager_secret.secrets["admin-password"]'    2>/dev/null || true
@@ -155,6 +156,26 @@ jobs:
           terraform state rm -lock=false 'module.iam.google_project_iam_member.deployer_roles["roles/storage.admin"]'           2>/dev/null || true
           terraform state rm -lock=false 'module.artifact_registry.google_artifact_registry_repository.images'                  2>/dev/null || true
           terraform state rm -lock=false 'google_project_service.apis["storage-component.googleapis.com"]'                      2>/dev/null || true
+          # Remove Cloud Run entries that drifted to point at travel-planner services
+          terraform state rm -lock=false 'module.backend_service.google_cloud_run_v2_service.backend'                 2>/dev/null || true
+          terraform state rm -lock=false 'module.backend_service.google_cloud_run_v2_service_iam_member.backend_public' 2>/dev/null || true
+          terraform state rm -lock=false 'module.frontend_service.google_cloud_run_v2_service.frontend'                2>/dev/null || true
+          terraform state rm -lock=false 'module.frontend_service.google_cloud_run_v2_service_iam_member.frontend_public' 2>/dev/null || true
+
+      - name: Re-import correct stocksense Cloud Run services
+        working-directory: infrastructure/terraform
+        run: |
+          PROJECT="${{ secrets.GCP_PROJECT_ID }}"
+          REGION="europe-west1"
+          # Import existing stocksense services so Terraform updates them (not recreates)
+          terraform import -lock=false \
+            module.backend_service.google_cloud_run_v2_service.backend \
+            "projects/${PROJECT}/locations/${REGION}/services/stocksense-backend" \
+            2>/dev/null || true
+          terraform import -lock=false \
+            module.frontend_service.google_cloud_run_v2_service.frontend \
+            "projects/${PROJECT}/locations/${REGION}/services/stocksense-frontend" \
+            2>/dev/null || true
 
       - name: Terraform Apply (targeted — skip orphaned state modules)
         run: |
