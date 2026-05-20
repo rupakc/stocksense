@@ -277,6 +277,7 @@ async def screen_stocks(
     exchange: str = Query(default="ALL", description="Filter universe: ALL, NSE, BSE, or NASDAQ"),
     sector: str | None = Query(default=None),
     min_market_cap: float | None = Query(default=None),
+    max_market_cap: float | None = Query(default=None),
     max_pe: float | None = Query(default=None),
     min_dividend_yield: float | None = Query(default=None),
     min_roe: float | None = Query(default=None),
@@ -313,9 +314,12 @@ async def screen_stocks(
 
     # Apply filters
     if sector:
-        stocks = [s for s in stocks if s.get("sector", "").lower() == sector.lower()]
+        # Use `or ""` instead of get default — key exists but value may be None
+        stocks = [s for s in stocks if (s.get("sector") or "").lower() == sector.lower()]
     if min_market_cap:
         stocks = [s for s in stocks if (s.get("market_cap") or 0) >= min_market_cap]
+    if max_market_cap:
+        stocks = [s for s in stocks if (s.get("market_cap") or 0) <= max_market_cap]
     if max_pe:
         stocks = [s for s in stocks if s.get("pe_ratio") is not None and s["pe_ratio"] <= max_pe]
     if min_dividend_yield:

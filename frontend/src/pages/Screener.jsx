@@ -84,17 +84,17 @@ const PRESET_ACTIVE = {
 }
 
 const MCAP_OPTIONS_INR = [
-  { label: 'All', value: null },
-  { label: 'Small Cap (< 5,000 Cr)', value: null, max: 50000000000 },
-  { label: 'Mid Cap (5,000 - 50,000 Cr)', value: 50000000000 },
-  { label: 'Large Cap (> 50,000 Cr)', value: 500000000000 },
+  { label: 'All',                           value: null,            max: null           },
+  { label: 'Small Cap (< 5,000 Cr)',        value: null,            max: 50_000_000_000 },
+  { label: 'Mid Cap (5,000 – 50,000 Cr)',   value: 50_000_000_000,  max: 500_000_000_000 },
+  { label: 'Large Cap (> 50,000 Cr)',       value: 500_000_000_000, max: null           },
 ]
 
 const MCAP_OPTIONS_USD = [
-  { label: 'All', value: null },
-  { label: 'Small Cap (< $2B)', value: null, max: 2000000000 },
-  { label: 'Mid Cap ($2B - $10B)', value: 2000000000 },
-  { label: 'Large Cap (> $10B)', value: 10000000000 },
+  { label: 'All',                  value: null,            max: null            },
+  { label: 'Small Cap (< $2B)',    value: null,            max: 2_000_000_000   },
+  { label: 'Mid Cap ($2B – $10B)', value: 2_000_000_000,   max: 10_000_000_000  },
+  { label: 'Large Cap (> $10B)',   value: 10_000_000_000,  max: null            },
 ]
 
 const SORT_OPTIONS = [
@@ -152,45 +152,59 @@ function SkeletonRow() {
   )
 }
 
+// Default values for all custom filters — single source of truth for resets
+const FILTER_DEFAULTS = {
+  sector: '',
+  mcapTier: 0,
+  maxPe: '',
+  minDividend: '',
+  minRoe: '',
+  maxDe: '',
+  near52Low: false,
+  near52High: false,
+}
+
 // ── Main component ──────────────────────────────────────────────────────────
 export default function Screener() {
-  const [filters, setFilters] = useState({})
-  const [activePreset, setActivePreset] = useState(null)
-  const [showFilters, setShowFilters] = useState(false)
-  const [sortBy, setSortBy] = useState('market_cap')
-  const [sortCol, setSortCol] = useState({ key: null, asc: true })
+  // Preset state (from preset buttons)
+  const [presetFilters, setPresetFilters] = useState({})
+  const [activePreset, setActivePreset]   = useState(null)
+  const [showFilters, setShowFilters]     = useState(false)
+  const [sortBy, setSortBy]               = useState('market_cap')
+  const [sortCol, setSortCol]             = useState({ key: null, asc: true })
+
+  // All custom filters in one object — easy to extend: add a key here + UI below
+  const [customFilters, setCustomFilters] = useState(FILTER_DEFAULTS)
 
   const globalExchange = useExchangeStore((s) => s.selected)
   const MCAP_OPTIONS = globalExchange === 'NASDAQ' ? MCAP_OPTIONS_USD : MCAP_OPTIONS_INR
   const PRESETS = useMemo(() => getPresets(globalExchange), [globalExchange])
 
-  // Custom filter state
-  const [sector, setSector] = useState('')
-  const [mcapTier, setMcapTier] = useState(0)
-  const [maxPe, setMaxPe] = useState('')
-  const [minDividend, setMinDividend] = useState('')
-  const [minRoe, setMinRoe] = useState('')
-  const [maxDe, setMaxDe] = useState('')
-  const [near52Low, setNear52Low] = useState(false)
-  const [near52High, setNear52High] = useState(false)
+  // Single setter for any custom filter key — clears active preset on every change
+  function setCustomFilter(key, value) {
+    setActivePreset(null)
+    setPresetFilters({})
+    setCustomFilters(prev => ({ ...prev, [key]: value }))
+  }
 
-  // Build API params from filters — exchange is passed server-side so the
-  // scan universe is scoped to the right market from the start.
+  // Build API params — exchange scopes the scan universe server-side
   const queryParams = useMemo(() => {
-    const p = { exchange: globalExchange, sort_by: sortBy, limit: 50, ...filters }
+    const { sector, mcapTier, maxPe, minDividend, minRoe, maxDe, near52Low, near52High } = customFilters
+    const p = { exchange: globalExchange, sort_by: sortBy, limit: 50, ...presetFilters }
     if (sector) p.sector = sector
     if (mcapTier > 0) {
-      p.min_market_cap = MCAP_OPTIONS[mcapTier].value
-      if (MCAP_OPTIONS[mcapTier].max !== null) p.max_market_cap = MCAP_OPTIONS[mcapTier].max
+      const opt = MCAP_OPTIONS[mcapTier]
+      if (opt.value != null) p.min_market_cap = opt.value
+      if (opt.max != null)   p.max_market_cap = opt.max
     }
-    if (maxPe) p.max_pe = parseFloat(maxPe)
+    if (maxPe)       p.max_pe             = parseFloat(maxPe)
     if (minDividend) p.min_dividend_yield = parseFloat(minDividend) / 100
-    if (minRoe) p.min_roe = parseFloat(minRoe) / 100
-    if (maxDe) p.max_debt_to_equity = parseFloat(maxDe)
-    if (near52Low) p.near_52w_low_pct = 10
-    if (near52High) p.near_52w_high_pct = 5
+    if (minRoe)      p.min_roe            = parseFloat(minRoe) / 100
+    if (maxDe)       p.max_debt_to_equity = parseFloat(maxDe)
+    if (near52Low)   p.near_52w_low_pct   = 10
+    if (near52High)  p.near_52w_high_pct  = 5
     return p
-  }, [filters, globalExchange, sector, mcapTier, maxPe, minDividend, minRoe, maxDe, near52Low, near52High, sortBy])
+  }, [presetFilters, globalExchange, customFilters, sortBy, MCAP_OPTIONS])
 
   const { data: stocks, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['screener', queryParams],
@@ -220,38 +234,18 @@ export default function Screener() {
   function handlePreset(preset) {
     if (activePreset === preset.id) {
       setActivePreset(null)
-      setFilters({})
+      setPresetFilters({})
     } else {
       setActivePreset(preset.id)
-      setFilters(preset.params)
-      // Reset custom filters when using preset
-      setSector('')
-      setMcapTier(0)
-      setMaxPe('')
-      setMinDividend('')
-      setMinRoe('')
-      setMaxDe('')
-      setNear52Low(false)
-      setNear52High(false)
+      setPresetFilters(preset.params)
+      setCustomFilters(FILTER_DEFAULTS)
     }
-  }
-
-  function applyCustomFilters() {
-    setActivePreset(null)
-    setFilters({})
   }
 
   function clearAll() {
     setActivePreset(null)
-    setFilters({})
-    setSector('')
-    setMcapTier(0)
-    setMaxPe('')
-    setMinDividend('')
-    setMinRoe('')
-    setMaxDe('')
-    setNear52Low(false)
-    setNear52High(false)
+    setPresetFilters({})
+    setCustomFilters(FILTER_DEFAULTS)
   }
 
   function toggleSortCol(key) {
@@ -260,6 +254,7 @@ export default function Screener() {
     )
   }
 
+  const { sector, mcapTier, maxPe, minDividend, minRoe, maxDe, near52Low, near52High } = customFilters
   const hasFilters = activePreset || sector || mcapTier > 0 || maxPe || minDividend || minRoe || maxDe || near52Low || near52High
 
   return (
@@ -334,8 +329,8 @@ export default function Screener() {
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Sector</label>
                 <select
-                  value={sector}
-                  onChange={e => { setSector(e.target.value); applyCustomFilters() }}
+                  value={customFilters.sector}
+                  onChange={e => setCustomFilter('sector', e.target.value)}
                   className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                 >
                   <option value="">All Sectors</option>
@@ -349,8 +344,8 @@ export default function Screener() {
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Market Cap</label>
                 <select
-                  value={mcapTier}
-                  onChange={e => { setMcapTier(Number(e.target.value)); applyCustomFilters() }}
+                  value={customFilters.mcapTier}
+                  onChange={e => setCustomFilter('mcapTier', Number(e.target.value))}
                   className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                 >
                   {MCAP_OPTIONS.map((opt, i) => (
@@ -364,8 +359,8 @@ export default function Screener() {
                 <label className="block text-xs font-medium text-slate-600 mb-1">Max P/E Ratio</label>
                 <input
                   type="number"
-                  value={maxPe}
-                  onChange={e => { setMaxPe(e.target.value); applyCustomFilters() }}
+                  value={customFilters.maxPe}
+                  onChange={e => setCustomFilter('maxPe', e.target.value)}
                   placeholder="e.g. 25"
                   className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                 />
@@ -376,8 +371,8 @@ export default function Screener() {
                 <label className="block text-xs font-medium text-slate-600 mb-1">Min Dividend Yield (%)</label>
                 <input
                   type="number"
-                  value={minDividend}
-                  onChange={e => { setMinDividend(e.target.value); applyCustomFilters() }}
+                  value={customFilters.minDividend}
+                  onChange={e => setCustomFilter('minDividend', e.target.value)}
                   placeholder="e.g. 2"
                   step="0.5"
                   className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-200"
@@ -389,8 +384,8 @@ export default function Screener() {
                 <label className="block text-xs font-medium text-slate-600 mb-1">Min ROE (%)</label>
                 <input
                   type="number"
-                  value={minRoe}
-                  onChange={e => { setMinRoe(e.target.value); applyCustomFilters() }}
+                  value={customFilters.minRoe}
+                  onChange={e => setCustomFilter('minRoe', e.target.value)}
                   placeholder="e.g. 15"
                   step="1"
                   className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-200"
@@ -402,8 +397,8 @@ export default function Screener() {
                 <label className="block text-xs font-medium text-slate-600 mb-1">Max Debt/Equity</label>
                 <input
                   type="number"
-                  value={maxDe}
-                  onChange={e => { setMaxDe(e.target.value); applyCustomFilters() }}
+                  value={customFilters.maxDe}
+                  onChange={e => setCustomFilter('maxDe', e.target.value)}
                   placeholder="e.g. 1.0"
                   step="0.1"
                   className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-200"
@@ -415,8 +410,8 @@ export default function Screener() {
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={near52Low}
-                    onChange={e => { setNear52Low(e.target.checked); applyCustomFilters() }}
+                    checked={customFilters.near52Low}
+                    onChange={e => setCustomFilter('near52Low', e.target.checked)}
                     className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-200"
                   />
                   <span className="text-sm text-slate-600">Near 52W Low (10%)</span>
@@ -428,8 +423,8 @@ export default function Screener() {
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={near52High}
-                    onChange={e => { setNear52High(e.target.checked); applyCustomFilters() }}
+                    checked={customFilters.near52High}
+                    onChange={e => setCustomFilter('near52High', e.target.checked)}
                     className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-200"
                   />
                   <span className="text-sm text-slate-600">Near 52W High (5%)</span>

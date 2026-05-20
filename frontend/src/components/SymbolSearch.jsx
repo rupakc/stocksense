@@ -36,7 +36,7 @@ export default function SymbolSearch({ onAdd, isAdding }) {
   }, [globalExchange])
 
   useEffect(() => {
-    if (!debouncedQ.trim() || selected) { setResults([]); setOpen(false); return }
+    if (!debouncedQ.trim() || selected) { setResults([]); setOpen(false); setLoading(false); return }
     let cancelled = false
     setLoading(true)
     searchSymbols(debouncedQ, exchange)
