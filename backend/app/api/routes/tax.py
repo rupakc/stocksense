@@ -11,10 +11,11 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 # India tax rules
-STCG_RATE = 0.20    # 20% for equity (Budget 2024, applicable from Jul 2024)
-LTCG_RATE = 0.125   # 12.5% for equity (Budget 2024)
+STCG_RATE = 0.20  # 20% for equity (Budget 2024, applicable from Jul 2024)
+LTCG_RATE = 0.125  # 12.5% for equity (Budget 2024)
 LTCG_EXEMPTION = 125000  # Rs 1.25 lakh LTCG exemption per year
 LONG_TERM_DAYS = 365  # >12 months = long term for equity
+
 
 @router.get("/report")
 async def get_tax_report(
@@ -41,9 +42,7 @@ async def get_tax_report(
             fy_start = date(now.year - 1, 4, 1)
             fy_end = date(now.year, 3, 31)
 
-    result = await db.execute(
-        select(Holding).where(Holding.user_id == current_user.id)
-    )
+    result = await db.execute(select(Holding).where(Holding.user_id == current_user.id))
     holdings = result.scalars().all()
 
     stcg_entries = []
@@ -64,12 +63,12 @@ async def get_tax_report(
 
         sell_date_val = None
         sell_price = None
-        if hasattr(h, 'sell_date') and h.sell_date:
+        if hasattr(h, "sell_date") and h.sell_date:
             try:
                 sell_date_val = datetime.strptime(str(h.sell_date)[:10], "%Y-%m-%d").date()
             except ValueError:
                 pass
-            sell_price = getattr(h, 'sell_price', None)
+            sell_price = getattr(h, "sell_price", None)
 
         if sell_date_val and sell_price:
             # Realized gain
@@ -98,15 +97,17 @@ async def get_tax_report(
             # Unrealized
             holding_days = (today - buy_date).days if buy_date else 0
             is_long_term = holding_days > LONG_TERM_DAYS
-            unrealized.append({
-                "symbol": h.symbol,
-                "quantity": h.quantity,
-                "buy_price": h.buy_price,
-                "buy_date": str(buy_date) if buy_date else None,
-                "holding_days": holding_days,
-                "type": "LTCG" if is_long_term else "STCG",
-                "current_value_note": "Use current market price for unrealized P&L",
-            })
+            unrealized.append(
+                {
+                    "symbol": h.symbol,
+                    "quantity": h.quantity,
+                    "buy_price": h.buy_price,
+                    "buy_date": str(buy_date) if buy_date else None,
+                    "holding_days": holding_days,
+                    "type": "LTCG" if is_long_term else "STCG",
+                    "current_value_note": "Use current market price for unrealized P&L",
+                }
+            )
             total_unrealized_cost += h.buy_price * h.quantity
 
     # Tax calculations
@@ -126,8 +127,8 @@ async def get_tax_report(
             "estimated_stcg_tax": round(stcg_tax, 2),
             "estimated_ltcg_tax": round(ltcg_tax, 2),
             "total_estimated_tax": round(stcg_tax + ltcg_tax, 2),
-            "stcg_rate": f"{STCG_RATE*100}%",
-            "ltcg_rate": f"{LTCG_RATE*100}%",
+            "stcg_rate": f"{STCG_RATE * 100}%",
+            "ltcg_rate": f"{LTCG_RATE * 100}%",
             "total_unrealized_cost_basis": round(total_unrealized_cost, 2),
         },
         "stcg_transactions": stcg_entries,

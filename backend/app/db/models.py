@@ -1,8 +1,15 @@
 from datetime import datetime
 
 from sqlalchemy import (
-    JSON, Boolean, DateTime, Float, ForeignKey,
-    Integer, String, Text, UniqueConstraint,
+    JSON,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -48,7 +55,9 @@ class StockPrice(Base):
     __table_args__ = (UniqueConstraint("symbol", "timestamp_utc"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    symbol: Mapped[str] = mapped_column(String(20), ForeignKey("watched_symbols.symbol"), index=True)
+    symbol: Mapped[str] = mapped_column(
+        String(20), ForeignKey("watched_symbols.symbol"), index=True
+    )
     timestamp_utc: Mapped[datetime] = mapped_column(DateTime, index=True)
     open: Mapped[float] = mapped_column(Float)
     high: Mapped[float] = mapped_column(Float)

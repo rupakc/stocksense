@@ -156,9 +156,7 @@ async def check_mf_overlap(
         common = user_symbols & scheme_holdings
 
         if common:
-            overlap_pct = round(
-                sum(scheme_data["holdings"][s] for s in common), 2
-            )
+            overlap_pct = round(sum(scheme_data["holdings"][s] for s in common), 2)
             overlaps.append(
                 {
                     "scheme_name": scheme_name,
@@ -194,7 +192,6 @@ async def check_mf_overlap(
         "schemes_analyzed": len(TOP_MF_SCHEMES),
         "overlaps": overlaps,
         "most_popular_holdings": [
-            {"symbol": sym, "found_in_schemes": count}
-            for sym, count in popular[:10]
+            {"symbol": sym, "found_in_schemes": count} for sym, count in popular[:10]
         ],
     }

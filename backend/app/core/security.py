@@ -5,18 +5,18 @@ from jose import JWTError, jwt
 
 from app.core.config import settings
 
-_PASSWORD_SPECIAL_CHARS = set('!@#$%^&*()_+-=[]{}|;:,.<>?')
+_PASSWORD_SPECIAL_CHARS = set("!@#$%^&*()_+-=[]{}|;:,.<>?")
 
 
 def validate_password_strength(v: str) -> str:
     if len(v) < 8:
-        raise ValueError('Password must be at least 8 characters')
+        raise ValueError("Password must be at least 8 characters")
     if not any(c.isupper() for c in v):
-        raise ValueError('Password must contain at least one uppercase letter')
+        raise ValueError("Password must contain at least one uppercase letter")
     if not any(c.isdigit() for c in v):
-        raise ValueError('Password must contain at least one digit')
+        raise ValueError("Password must contain at least one digit")
     if not any(c in _PASSWORD_SPECIAL_CHARS for c in v):
-        raise ValueError('Password must contain at least one special character')
+        raise ValueError("Password must contain at least one special character")
     return v
 
 

@@ -29,7 +29,6 @@ class NewsService:
 
     def _parse_date(self, entry) -> datetime:
         if hasattr(entry, "published_parsed") and entry.published_parsed:
-            import time
             return datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
         return datetime.now(timezone.utc)
 
@@ -46,16 +45,18 @@ class NewsService:
                         continue
                     text = f"{title}. {summary}"
                     scores = self.sentiment.analyze(text)
-                    articles.append({
-                        "article_hash": self._hash_article(link, title),
-                        "title": title[:500],
-                        "summary": summary[:2000] if summary else None,
-                        "url": link[:1000],
-                        "source": source,
-                        "published_at": self._parse_date(entry),
-                        "related_symbols": self.sentiment.extract_symbols(text),
-                        **scores,
-                    })
+                    articles.append(
+                        {
+                            "article_hash": self._hash_article(link, title),
+                            "title": title[:500],
+                            "summary": summary[:2000] if summary else None,
+                            "url": link[:1000],
+                            "source": source,
+                            "published_at": self._parse_date(entry),
+                            "related_symbols": self.sentiment.extract_symbols(text),
+                            **scores,
+                        }
+                    )
             except Exception as e:
                 logger.warning(f"Failed to fetch RSS from {source}: {e}")
         return articles
@@ -64,6 +65,7 @@ class NewsService:
         articles = self.fetch_articles()
         from app.db.models import NewsArticle
         from app.db.upsert import insert_ignore_single
+
         for article in articles:
             await insert_ignore_single(db, NewsArticle, article, ["article_hash"])
         await db.commit()
@@ -71,7 +73,7 @@ class NewsService:
 
     async def get_sentiment_summary(self, symbol: str, db: AsyncSession) -> dict:
         from datetime import timedelta
-        from sqlalchemy import select, func
+        from sqlalchemy import select
         from app.db.models import NewsArticle
 
         now = datetime.now(timezone.utc)
@@ -84,9 +86,13 @@ class NewsService:
             .order_by(NewsArticle.published_at.desc())
         )
         articles = result.scalars().all()
-        relevant = [a for a in articles if base.lower() in a.title.lower()
-                    or base.lower() in (a.summary or "").lower()
-                    or symbol in (a.related_symbols or [])]
+        relevant = [
+            a
+            for a in articles
+            if base.lower() in a.title.lower()
+            or base.lower() in (a.summary or "").lower()
+            or symbol in (a.related_symbols or [])
+        ]
 
         def avg_sentiment(arts):
             vals = [a.sentiment_compound for a in arts if a.sentiment_compound is not None]

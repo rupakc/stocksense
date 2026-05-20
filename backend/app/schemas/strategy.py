@@ -45,9 +45,10 @@ class TradeRecord(BaseModel):
 
 class BacktestRequest(BaseModel):
     """Optional body for POST-based backtest with custom parameters."""
+
     lookback_days: int = 365
-    start_date: str | None = None   # "YYYY-MM-DD"
-    end_date: str | None = None     # "YYYY-MM-DD"
+    start_date: str | None = None  # "YYYY-MM-DD"
+    end_date: str | None = None  # "YYYY-MM-DD"
     params: dict[str, float] | None = None  # strategy parameter overrides
     include_costs: bool = True
 

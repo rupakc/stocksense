@@ -20,14 +20,15 @@ class NewsArticleOut(BaseModel):
 
 class WebNewsArticle(BaseModel):
     """Article returned from internet search — not stored in DB."""
+
     id: str
     title: str
     summary: Optional[str] = None
     url: str
     source: str
-    source_type: str          # yfinance | google_rss | ddg | bing_rss
+    source_type: str  # yfinance | google_rss | ddg | bing_rss
     thumbnail: Optional[str] = None
-    published_at: str         # ISO string
+    published_at: str  # ISO string
     sentiment_compound: Optional[float] = None
     sentiment_positive: Optional[float] = None
     sentiment_negative: Optional[float] = None

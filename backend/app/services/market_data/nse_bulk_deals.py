@@ -2,6 +2,7 @@
 Fetches bulk/block deal data from NSE India's public API.
 Supplements yfinance insider data which is often incomplete for Indian stocks.
 """
+
 from __future__ import annotations
 
 import logging
@@ -16,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 _NSE_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-                  "(KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+    "(KHTML, like Gecko) Chrome/124.0 Safari/537.36",
     "Accept": "application/json, text/plain, */*",
     "Accept-Language": "en-US,en;q=0.9",
     "Referer": "https://www.nseindia.com/",
@@ -61,7 +62,9 @@ def _fetch_deals(client: httpx.Client, url: str, nse_sym: str, days: int = 180) 
         if sym.upper() != nse_sym:
             continue
         buy_sell = (row.get("BD_BUY_SELL") or row.get("buyOrSell") or "").upper()
-        tx_type = "Buy" if buy_sell == "BUY" else "Sell" if buy_sell == "SELL" else buy_sell or "Other"
+        tx_type = (
+            "Buy" if buy_sell == "BUY" else "Sell" if buy_sell == "SELL" else buy_sell or "Other"
+        )
         try:
             qty = int(float(row.get("BD_QTY_TRD") or row.get("quantity") or 0))
         except (ValueError, TypeError):
@@ -73,20 +76,26 @@ def _fetch_deals(client: httpx.Client, url: str, nse_sym: str, days: int = 180) 
             val = None
         raw_date = row.get("BD_DT_DATE") or row.get("date") or ""
         try:
-            parsed_date = datetime.strptime(raw_date[:10], "%d-%b-%Y").strftime("%Y-%m-%d") if raw_date else None
+            parsed_date = (
+                datetime.strptime(raw_date[:10], "%d-%b-%Y").strftime("%Y-%m-%d")
+                if raw_date
+                else None
+            )
         except ValueError:
             parsed_date = raw_date[:10] if raw_date else None
 
-        results.append({
-            "insider_name": row.get("BD_CLIENT_NAME") or row.get("clientName") or "Unknown",
-            "position": "Bulk/Block Deal",
-            "transaction_type": tx_type,
-            "shares": qty,
-            "value": val,
-            "date": parsed_date,
-            "ownership": None,
-            "source": "nse_bulk_deals",
-        })
+        results.append(
+            {
+                "insider_name": row.get("BD_CLIENT_NAME") or row.get("clientName") or "Unknown",
+                "position": "Bulk/Block Deal",
+                "transaction_type": tx_type,
+                "shares": qty,
+                "value": val,
+                "date": parsed_date,
+                "ownership": None,
+                "source": "nse_bulk_deals",
+            }
+        )
     return results
 
 

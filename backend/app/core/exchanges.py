@@ -2,6 +2,7 @@
 Centralized exchange registry. Adding a new exchange is just a new entry here —
 no code changes needed anywhere else.
 """
+
 from __future__ import annotations
 
 EXCHANGES: dict[str, dict] = {

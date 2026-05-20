@@ -36,7 +36,7 @@ async def get_risk_analysis(
 
     result = await db.execute(
         select(WatchedSymbol).where(
-            WatchedSymbol.is_active == True,
+            WatchedSymbol.is_active.is_(True),
             WatchedSymbol.user_id == current_user.id,
         )
     )
@@ -69,11 +69,19 @@ async def get_risk_analysis(
             returns_dict[sym] = ret
 
     if not returns_dict:
-        return {"symbols": symbols, "correlation_matrix": {}, "risk_metrics": {}, "sector_weights": {}}
+        return {
+            "symbols": symbols,
+            "correlation_matrix": {},
+            "risk_metrics": {},
+            "sector_weights": {},
+        }
 
     df = pd.DataFrame(returns_dict)
     corr_df = df.corr().round(3)
-    corr = {k: {k2: (None if pd.isna(v2) else v2) for k2, v2 in v.items()} for k, v in corr_df.to_dict().items()}
+    corr = {
+        k: {k2: (None if pd.isna(v2) else v2) for k2, v2 in v.items()}
+        for k, v in corr_df.to_dict().items()
+    }
 
     benchmark_rets = {}
     for bench_ticker, bench_name in [("^NSEI", "nifty"), ("^GSPC", "sp500")]:

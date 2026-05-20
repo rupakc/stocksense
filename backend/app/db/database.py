@@ -20,6 +20,7 @@ class Base(DeclarativeBase):
 async def init_db():
     async with engine.begin() as conn:
         from app.db import models  # noqa: F401 — register models
+
         await conn.run_sync(Base.metadata.create_all)
         await conn.execute(text("PRAGMA journal_mode=WAL"))
 
@@ -35,9 +36,11 @@ async def _migrate_user_id_column():
             result = await conn.execute(text("PRAGMA table_info(watched_symbols)"))
             cols = [row[1] for row in result.fetchall()]
             if "user_id" not in cols:
-                await conn.execute(text(
-                    "ALTER TABLE watched_symbols ADD COLUMN user_id INTEGER REFERENCES users(id)"
-                ))
+                await conn.execute(
+                    text(
+                        "ALTER TABLE watched_symbols ADD COLUMN user_id INTEGER REFERENCES users(id)"
+                    )
+                )
                 logger.info("[init] Added user_id column to watched_symbols")
         except OperationalError:
             pass  # table doesn't exist yet — create_all handles it
@@ -52,9 +55,9 @@ async def _migrate_users_columns():
     """
     new_columns = [
         ("preferred_exchange", "VARCHAR(10) DEFAULT 'ALL'"),
-        ("is_admin",       "BOOLEAN NOT NULL DEFAULT 0"),
-        ("is_active",      "BOOLEAN NOT NULL DEFAULT 1"),
-        ("email",          "VARCHAR(255)"),   # UNIQUE enforced below via partial index
+        ("is_admin", "BOOLEAN NOT NULL DEFAULT 0"),
+        ("is_active", "BOOLEAN NOT NULL DEFAULT 1"),
+        ("email", "VARCHAR(255)"),  # UNIQUE enforced below via partial index
         ("is_first_login", "BOOLEAN NOT NULL DEFAULT 1"),
     ]
     async with engine.begin() as conn:
@@ -66,18 +69,18 @@ async def _migrate_users_columns():
         for col_name, col_def in new_columns:
             if col_name not in existing:
                 try:
-                    await conn.execute(text(
-                        f"ALTER TABLE users ADD COLUMN {col_name} {col_def}"
-                    ))
+                    await conn.execute(text(f"ALTER TABLE users ADD COLUMN {col_name} {col_def}"))
                     logger.info(f"[init] Added column '{col_name}' to users")
                 except OperationalError as exc:
                     logger.warning(f"[init] Could not add '{col_name}': {exc}")
 
         # Ensure the email unique index exists (partial — NULL emails are not unique)
-        await conn.execute(text(
-            "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_email "
-            "ON users(email) WHERE email IS NOT NULL"
-        ))
+        await conn.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_email "
+                "ON users(email) WHERE email IS NOT NULL"
+            )
+        )
 
 
 async def _seed_default_user():
@@ -105,9 +108,7 @@ async def _seed_default_user():
             logger.info(f"[init] Created default user '{user.username}' (id={user.id})")
             logger.warning("[init] Default credentials active — change password in production!")
 
-        orphans = await db.execute(
-            select(WatchedSymbol).where(WatchedSymbol.user_id.is_(None))
-        )
+        orphans = await db.execute(select(WatchedSymbol).where(WatchedSymbol.user_id.is_(None)))
         for ws in orphans.scalars().all():
             ws.user_id = user.id
         await db.commit()

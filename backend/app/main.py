@@ -2,16 +2,29 @@ import asyncio
 import logging
 import warnings
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import Response
 
 from app.api.deps import get_active_user
-from app.api.routes import auth, stocks, predictions, news, economic, portfolio, strategies, screener, compare, tax, corporate_actions, alerts, admin
+from app.api.routes import (
+    auth,
+    stocks,
+    predictions,
+    news,
+    economic,
+    portfolio,
+    strategies,
+    screener,
+    compare,
+    tax,
+    corporate_actions,
+    alerts,
+    admin,
+)
 from app.api.routes.mf_overlap import router as mf_router
 from app.core.config import settings
 from app.db.database import AsyncSessionLocal, init_db
@@ -138,9 +151,7 @@ async def lifespan(app: FastAPI):
     training_task = asyncio.create_task(_training_loop())
     # Only run DB backup loop when GCS is configured — avoids pointless no-op wakeups
     backup_task = (
-        asyncio.create_task(_periodic_db_backup(gcs, db_path))
-        if db_path and gcs.enabled
-        else None
+        asyncio.create_task(_periodic_db_backup(gcs, db_path)) if db_path and gcs.enabled else None
     )
 
     yield
@@ -172,7 +183,9 @@ async def _seed_admin_user() -> None:
             await db.commit()
             logger.info(f"Admin '{admin.username}' password synced from DEFAULT_PASSWORD")
         else:
-            existing = await db.execute(select(User).where(User.username == settings.default_username))
+            existing = await db.execute(
+                select(User).where(User.username == settings.default_username)
+            )
             user = existing.scalar_one_or_none()
             if user:
                 user.is_admin = True
@@ -203,12 +216,14 @@ async def _seed_admin_user() -> None:
         if not ws_check.scalar_one_or_none():
             for sym in settings.default_symbols:
                 exchange = "BSE" if sym.endswith(".BO") else "NSE"
-                db.add(WatchedSymbol(
-                    symbol=sym,
-                    exchange=exchange,
-                    user_id=admin.id,
-                    is_active=True,
-                ))
+                db.add(
+                    WatchedSymbol(
+                        symbol=sym,
+                        exchange=exchange,
+                        user_id=admin.id,
+                        is_active=True,
+                    )
+                )
             await db.commit()
             logger.info(
                 f"Seeded default watchlist ({len(settings.default_symbols)} symbols) for admin"
@@ -221,6 +236,7 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -271,7 +287,9 @@ protected.include_router(strategies.router, prefix="/strategies", tags=["strateg
 protected.include_router(screener.router, prefix="/screener", tags=["screener"])
 protected.include_router(compare.router, prefix="/compare", tags=["compare"])
 protected.include_router(tax.router, prefix="/tax", tags=["tax"])
-protected.include_router(corporate_actions.router, prefix="/corporate-actions", tags=["corporate-actions"])
+protected.include_router(
+    corporate_actions.router, prefix="/corporate-actions", tags=["corporate-actions"]
+)
 protected.include_router(mf_router, prefix="/mf", tags=["mutual-funds"])
 protected.include_router(alerts.router, prefix="/alerts", tags=["alerts"])
 protected.include_router(admin.router, prefix="/admin", tags=["admin"])
@@ -286,4 +304,5 @@ async def health_check():
 @app.get("/api/exchanges")
 async def get_exchanges():
     from app.core.exchanges import get_client_registry
+
     return get_client_registry()

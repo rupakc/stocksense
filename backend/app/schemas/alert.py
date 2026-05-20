@@ -15,7 +15,7 @@ ALERT_TYPES = [
     "volume_above",
 ]
 
-_SYMBOL_RE = re.compile(r'^[A-Z0-9&_.-]{1,20}$')
+_SYMBOL_RE = re.compile(r"^[A-Z0-9&_.-]{1,20}$")
 
 
 class AlertCreate(BaseModel):
@@ -23,11 +23,11 @@ class AlertCreate(BaseModel):
     alert_type: str = Field(..., description="One of: " + ", ".join(ALERT_TYPES))
     threshold: float
 
-    @field_validator('symbol')
+    @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v):
         if not _SYMBOL_RE.match(v):
-            raise ValueError('Invalid symbol format')
+            raise ValueError("Invalid symbol format")
         return v
 
 

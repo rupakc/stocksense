@@ -44,6 +44,7 @@ class GCSSync:
 
         try:
             from google.cloud import storage
+
             self._client = storage.Client()
             logger.info(f"[gcs] Persistence enabled — bucket: {bucket_name}")
         except ImportError:
@@ -111,8 +112,7 @@ class GCSSync:
             blob.upload_from_filename(tmp_path)
             size_mb = Path(local_path).stat().st_size / 1_048_576
             logger.info(
-                f"[gcs] Backed up DB ({size_mb:.1f} MB) → "
-                f"gs://{self._bucket_name}/{_DB_BLOB}"
+                f"[gcs] Backed up DB ({size_mb:.1f} MB) → gs://{self._bucket_name}/{_DB_BLOB}"
             )
             return True
         except Exception as exc:

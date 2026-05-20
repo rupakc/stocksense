@@ -5,6 +5,7 @@ Data sources:
   - World Bank Open API (no auth) — annual macro indicators
   - Yahoo Finance via yfinance   — live forex, commodities, sector indices
 """
+
 import logging
 from datetime import datetime, timezone
 
@@ -20,27 +21,26 @@ WORLD_BANK_BASE = "https://api.worldbank.org/v2"
 # ──────────────────────────────────────────────────────────────────────────────
 WORLD_BANK_INDICATORS = [
     # ── India Macro ──────────────────────────────────────────────────────────
-    ("IN", "NY.GDP.MKTP.KD.ZG",   "India GDP Growth (%)",              "India Macro"),
-    ("IN", "FP.CPI.TOTL.ZG",      "India CPI Inflation (%)",           "India Macro"),
-    ("IN", "FR.INR.RINR",         "India Real Interest Rate (%)",       "India Macro"),
-    ("IN", "SL.UEM.TOTL.ZS",      "India Unemployment Rate (%)",        "India Macro"),
-    ("IN", "NE.TRD.GNFS.ZS",      "India Trade (% of GDP)",             "India Macro"),
-    ("IN", "BN.CAB.XOKA.GD.ZS",   "India Current Account (% of GDP)",   "India Macro"),
-    ("IN", "BX.KLT.DINV.WD.GD.ZS","India FDI Inflows (% of GDP)",       "India Macro"),
-    ("IN", "GC.DOD.TOTL.GD.ZS",   "India Govt Debt (% of GDP)",         "India Macro"),
-    ("IN", "FS.AST.DOMS.GD.ZS",   "India Private Credit (% of GDP)",    "India Macro"),
-    ("IN", "NV.IND.TOTL.KD.ZG",   "India Industrial Growth (%)",         "India Macro"),
-    ("IN", "NV.SRV.TOTL.KD.ZG",   "India Services Growth (%)",           "India Macro"),
-    ("IN", "NY.GDP.PCAP.CD",       "India GDP per Capita (USD)",          "India Macro"),
-
+    ("IN", "NY.GDP.MKTP.KD.ZG", "India GDP Growth (%)", "India Macro"),
+    ("IN", "FP.CPI.TOTL.ZG", "India CPI Inflation (%)", "India Macro"),
+    ("IN", "FR.INR.RINR", "India Real Interest Rate (%)", "India Macro"),
+    ("IN", "SL.UEM.TOTL.ZS", "India Unemployment Rate (%)", "India Macro"),
+    ("IN", "NE.TRD.GNFS.ZS", "India Trade (% of GDP)", "India Macro"),
+    ("IN", "BN.CAB.XOKA.GD.ZS", "India Current Account (% of GDP)", "India Macro"),
+    ("IN", "BX.KLT.DINV.WD.GD.ZS", "India FDI Inflows (% of GDP)", "India Macro"),
+    ("IN", "GC.DOD.TOTL.GD.ZS", "India Govt Debt (% of GDP)", "India Macro"),
+    ("IN", "FS.AST.DOMS.GD.ZS", "India Private Credit (% of GDP)", "India Macro"),
+    ("IN", "NV.IND.TOTL.KD.ZG", "India Industrial Growth (%)", "India Macro"),
+    ("IN", "NV.SRV.TOTL.KD.ZG", "India Services Growth (%)", "India Macro"),
+    ("IN", "NY.GDP.PCAP.CD", "India GDP per Capita (USD)", "India Macro"),
     # ── Global Macro ─────────────────────────────────────────────────────────
-    ("US", "NY.GDP.MKTP.KD.ZG",   "US GDP Growth (%)",                  "Global Macro"),
-    ("US", "FP.CPI.TOTL.ZG",      "US CPI Inflation (%)",               "Global Macro"),
-    ("US", "SL.UEM.TOTL.ZS",      "US Unemployment Rate (%)",            "Global Macro"),
-    ("CN", "NY.GDP.MKTP.KD.ZG",   "China GDP Growth (%)",               "Global Macro"),
-    ("CN", "FP.CPI.TOTL.ZG",      "China CPI Inflation (%)",            "Global Macro"),
-    ("1W", "NY.GDP.MKTP.KD.ZG",   "World GDP Growth (%)",               "Global Macro"),
-    ("1W", "FP.CPI.TOTL.ZG",      "World Inflation (%)",                "Global Macro"),
+    ("US", "NY.GDP.MKTP.KD.ZG", "US GDP Growth (%)", "Global Macro"),
+    ("US", "FP.CPI.TOTL.ZG", "US CPI Inflation (%)", "Global Macro"),
+    ("US", "SL.UEM.TOTL.ZS", "US Unemployment Rate (%)", "Global Macro"),
+    ("CN", "NY.GDP.MKTP.KD.ZG", "China GDP Growth (%)", "Global Macro"),
+    ("CN", "FP.CPI.TOTL.ZG", "China CPI Inflation (%)", "Global Macro"),
+    ("1W", "NY.GDP.MKTP.KD.ZG", "World GDP Growth (%)", "Global Macro"),
+    ("1W", "FP.CPI.TOTL.ZG", "World Inflation (%)", "Global Macro"),
 ]
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -49,40 +49,41 @@ WORLD_BANK_INDICATORS = [
 # ──────────────────────────────────────────────────────────────────────────────
 LIVE_TICKERS = {
     # Forex
-    "USD/INR":    ("USDINR=X",    "Forex"),
-    "EUR/INR":    ("EURINR=X",    "Forex"),
-    "GBP/INR":    ("GBPINR=X",    "Forex"),
-    "JPY/INR":    ("JPYINR=X",    "Forex"),
-    "CNY/INR":    ("CNYINR=X",    "Forex"),
+    "USD/INR": ("USDINR=X", "Forex"),
+    "EUR/INR": ("EURINR=X", "Forex"),
+    "GBP/INR": ("GBPINR=X", "Forex"),
+    "JPY/INR": ("JPYINR=X", "Forex"),
+    "CNY/INR": ("CNYINR=X", "Forex"),
     # Commodities
-    "Crude Oil":  ("CL=F",        "Commodities"),
-    "Gold":       ("GC=F",        "Commodities"),
-    "Silver":     ("SI=F",        "Commodities"),
-    "Copper":     ("HG=F",        "Commodities"),
-    "Nat. Gas":   ("NG=F",        "Commodities"),
+    "Crude Oil": ("CL=F", "Commodities"),
+    "Gold": ("GC=F", "Commodities"),
+    "Silver": ("SI=F", "Commodities"),
+    "Copper": ("HG=F", "Commodities"),
+    "Nat. Gas": ("NG=F", "Commodities"),
     # Indian indices
-    "Nifty 50":       ("^NSEI",      "Indian Indices"),
-    "Nifty Bank":     ("^NSEBANK",   "Indian Indices"),
-    "Nifty IT":       ("^CNXIT",     "Indian Indices"),
-    "Nifty Auto":     ("^CNXAUTO",   "Indian Indices"),
-    "Nifty FMCG":     ("^CNXFMCG",  "Indian Indices"),
-    "Nifty Pharma":   ("^CNXPHARMA", "Indian Indices"),
-    "Nifty Midcap":   ("NIFMDCP100.NS", "Indian Indices"),
-    "Sensex":         ("^BSESN",     "Indian Indices"),
+    "Nifty 50": ("^NSEI", "Indian Indices"),
+    "Nifty Bank": ("^NSEBANK", "Indian Indices"),
+    "Nifty IT": ("^CNXIT", "Indian Indices"),
+    "Nifty Auto": ("^CNXAUTO", "Indian Indices"),
+    "Nifty FMCG": ("^CNXFMCG", "Indian Indices"),
+    "Nifty Pharma": ("^CNXPHARMA", "Indian Indices"),
+    "Nifty Midcap": ("NIFMDCP100.NS", "Indian Indices"),
+    "Sensex": ("^BSESN", "Indian Indices"),
     # Global
-    "S&P 500":    ("^GSPC",       "Global Indices"),
-    "NASDAQ":     ("^IXIC",       "Global Indices"),
-    "Nikkei 225": ("^N225",       "Global Indices"),
-    "HSI":        ("^HSI",        "Global Indices"),
-    "US 10Y":     ("^TNX",        "Global Indices"),
-    "VIX":        ("^VIX",        "Global Indices"),
-    "India VIX":  ("^INDIAVIX",   "Global Indices"),
+    "S&P 500": ("^GSPC", "Global Indices"),
+    "NASDAQ": ("^IXIC", "Global Indices"),
+    "Nikkei 225": ("^N225", "Global Indices"),
+    "HSI": ("^HSI", "Global Indices"),
+    "US 10Y": ("^TNX", "Global Indices"),
+    "VIX": ("^VIX", "Global Indices"),
+    "India VIX": ("^INDIAVIX", "Global Indices"),
 }
 
 
 class EconomicService:
     def __init__(self):
         import asyncio
+
         self._wb_cache: dict = {}
         self._wb_cache_ts: datetime | None = None
         self._live_cache: dict = {}
@@ -113,6 +114,7 @@ class EconomicService:
                 return self._wb_cache
 
             import asyncio
+
             loop = asyncio.get_event_loop()
 
             def _fetch_all():
@@ -139,7 +141,8 @@ class EconomicService:
                 return {"error": "No data available", "data": []}
             entries = [
                 {"year": e["date"], "value": round(e["value"], 3)}
-                for e in payload[1] if e.get("value") is not None
+                for e in payload[1]
+                if e.get("value") is not None
             ]
             return {"country": country, "indicator": indicator, "data": entries}
         except Exception as exc:
@@ -172,8 +175,12 @@ class EconomicService:
 
             # Single batch download — much faster than individual Ticker calls
             raw = yf.download(
-                tickers_str, period="5d", progress=False,
-                auto_adjust=True, group_by="ticker", threads=True,
+                tickers_str,
+                period="5d",
+                progress=False,
+                auto_adjust=True,
+                group_by="ticker",
+                threads=True,
             )
 
             rates: dict = {}
@@ -198,9 +205,9 @@ class EconomicService:
                         change_pct = 0
 
                     rates[label] = {
-                        "ticker":     ticker,
-                        "category":   category,
-                        "price":      round(price, 4),
+                        "ticker": ticker,
+                        "category": category,
+                        "price": round(price, 4),
                         "change_pct": round(change_pct, 3),
                     }
                 except Exception as exc:

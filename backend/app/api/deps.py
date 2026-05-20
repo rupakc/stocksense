@@ -16,7 +16,9 @@ async def get_current_user(
 ) -> User:
     payload = decode_access_token(creds.credentials)
     if payload is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token"
+        )
 
     user_id = int(payload["sub"])
     result = await db.execute(select(User).where(User.id == user_id))

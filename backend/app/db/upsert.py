@@ -9,7 +9,9 @@ def _is_sqlite() -> bool:
     return settings.database_url.startswith("sqlite")
 
 
-async def insert_ignore_batch(db: AsyncSession, model, records: list[dict], conflict_cols: list[str]):
+async def insert_ignore_batch(
+    db: AsyncSession, model, records: list[dict], conflict_cols: list[str]
+):
     """Insert rows, silently skip conflicts on *conflict_cols*."""
     if not records:
         return

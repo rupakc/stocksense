@@ -11,6 +11,7 @@ Strategies:
   7. donchian_breakout  — Donchian Channel 20-day (Turtle Trading)
   8. supertrend         — ATR-based Supertrend 10/3
 """
+
 import hashlib
 import json
 import logging
@@ -28,19 +29,19 @@ from app.core.exchanges import exchange_for_symbol
 # Transaction costs per exchange (delivery-based)
 # ─────────────────────────────────────────────────────────────────────────────
 INDIAN_TRANSACTION_COSTS = {
-    "stt_buy": 0.001,           # 0.1% STT on buy (delivery)
-    "stt_sell": 0.001,          # 0.1% STT on sell (delivery)
-    "brokerage": 0.0003,        # 0.03% typical discount broker
+    "stt_buy": 0.001,  # 0.1% STT on buy (delivery)
+    "stt_sell": 0.001,  # 0.1% STT on sell (delivery)
+    "brokerage": 0.0003,  # 0.03% typical discount broker
     "exchange_txn": 0.0000345,  # NSE transaction charge
-    "gst": 0.18,                # 18% GST on brokerage
-    "sebi_fee": 0.000001,       # SEBI turnover fee
+    "gst": 0.18,  # 18% GST on brokerage
+    "sebi_fee": 0.000001,  # SEBI turnover fee
     "stamp_duty_buy": 0.00015,  # 0.015% stamp duty on buy
 }
 
 US_TRANSACTION_COSTS = {
-    "brokerage": 0.0,           # zero commission (most US brokers)
-    "sec_fee": 0.0000278,       # SEC transaction fee (~$27.80 per $1M)
-    "taf_fee": 0.000119,        # FINRA TAF ($0.000119 per share, approximated as %)
+    "brokerage": 0.0,  # zero commission (most US brokers)
+    "sec_fee": 0.0000278,  # SEC transaction fee (~$27.80 per $1M)
+    "taf_fee": 0.000119,  # FINRA TAF ($0.000119 per share, approximated as %)
 }
 
 
@@ -53,8 +54,9 @@ def _yfinance_ticker(symbol: str) -> str:
     return symbol
 
 
-def calculate_transaction_cost(price: float, quantity: int, side: str,
-                               exchange: str = "NSE") -> float:
+def calculate_transaction_cost(
+    price: float, quantity: int, side: str, exchange: str = "NSE"
+) -> float:
     """Calculate realistic transaction costs based on exchange."""
     value = price * quantity
     if exchange == "NASDAQ":
@@ -82,9 +84,15 @@ _BACKTEST_CACHE_TTL = 1800  # 30 minutes
 _backtest_cache_lock = threading.Lock()
 
 
-def _cache_key(symbol: str, strategy_id: str, lookback_days: int,
-               start_date: str | None, end_date: str | None,
-               params: dict | None, include_costs: bool) -> str:
+def _cache_key(
+    symbol: str,
+    strategy_id: str,
+    lookback_days: int,
+    start_date: str | None,
+    end_date: str | None,
+    params: dict | None,
+    include_costs: bool,
+) -> str:
     params_str = json.dumps(params, sort_keys=True) if params else ""
     raw = f"{symbol}:{strategy_id}:{lookback_days}:{start_date}:{end_date}:{params_str}:{include_costs}"
     return hashlib.md5(raw.encode()).hexdigest()
@@ -103,6 +111,7 @@ def _cache_get(key: str) -> dict | None:
 def _cache_set(key: str, result: dict) -> None:
     with _backtest_cache_lock:
         _backtest_cache[key] = (time.monotonic(), result)
+
 
 logger = logging.getLogger(__name__)
 
@@ -244,6 +253,7 @@ _yf_lock = threading.Lock()
 
 def _load_ohlcv(symbol: str, period: str = "2y") -> pd.DataFrame:
     import time
+
     cache_key = f"{symbol}:{period}"
     now = time.monotonic()
     if cache_key in _ohlcv_cache:
@@ -267,9 +277,9 @@ def _load_ohlcv(symbol: str, period: str = "2y") -> pd.DataFrame:
 
 
 def _atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
-    h, l, c = df["high"], df["low"], df["close"]
+    h, lo, c = df["high"], df["low"], df["close"]
     prev_c = c.shift(1)
-    tr = pd.concat([h - l, (h - prev_c).abs(), (l - prev_c).abs()], axis=1).max(axis=1)
+    tr = pd.concat([h - lo, (h - prev_c).abs(), (lo - prev_c).abs()], axis=1).max(axis=1)
     return tr.ewm(span=period, adjust=False).mean()
 
 
@@ -291,8 +301,16 @@ def _compute_supertrend(df: pd.DataFrame, atr_period: int = 10, multiplier: floa
     final_lb[0] = lb_basic[0]
 
     for i in range(1, n):
-        final_ub[i] = ub_basic[i] if ub_basic[i] < final_ub[i - 1] or close[i - 1] > final_ub[i - 1] else final_ub[i - 1]
-        final_lb[i] = lb_basic[i] if lb_basic[i] > final_lb[i - 1] or close[i - 1] < final_lb[i - 1] else final_lb[i - 1]
+        final_ub[i] = (
+            ub_basic[i]
+            if ub_basic[i] < final_ub[i - 1] or close[i - 1] > final_ub[i - 1]
+            else final_ub[i - 1]
+        )
+        final_lb[i] = (
+            lb_basic[i]
+            if lb_basic[i] > final_lb[i - 1] or close[i - 1] < final_lb[i - 1]
+            else final_lb[i - 1]
+        )
 
         if np.isnan(supertrend[i - 1]):
             supertrend[i] = final_ub[i]
@@ -342,8 +360,9 @@ def _stops(price: float, atr: float, signal: str):
 # Signal generators
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def _signal_golden_cross(df: pd.DataFrame) -> dict:
-    sma50  = df["close"].rolling(50).mean()
+    sma50 = df["close"].rolling(50).mean()
     sma200 = df["close"].rolling(200).mean()
     if len(df) < 201 or sma200.isna().all():
         return _no_data("Need 200+ days of data for Golden Cross")
@@ -355,7 +374,7 @@ def _signal_golden_cross(df: pd.DataFrame) -> dict:
     spread = (c50 - c200) / c200 * 100
 
     fresh_golden = p50 <= p200 and c50 > c200
-    fresh_death  = p50 >= p200 and c50 < c200
+    fresh_death = p50 >= p200 and c50 < c200
 
     if fresh_golden:
         sig, strength = "BUY", 0.92
@@ -374,21 +393,27 @@ def _signal_golden_cross(df: pd.DataFrame) -> dict:
 
     sl, tp = _stops(price, atr14, sig)
     return {
-        "signal": sig, "strength": round(strength, 2), "rationale": rationale,
-        "entry_price": round(price, 2), "stop_loss": sl, "target_price": tp,
+        "signal": sig,
+        "strength": round(strength, 2),
+        "rationale": rationale,
+        "entry_price": round(price, 2),
+        "stop_loss": sl,
+        "target_price": tp,
         "key_metrics": {
-            "sma_50": round(c50, 2), "sma_200": round(c200, 2),
-            "spread_pct": round(spread, 2), "fresh_crossover": fresh_golden or fresh_death,
+            "sma_50": round(c50, 2),
+            "sma_200": round(c200, 2),
+            "spread_pct": round(spread, 2),
+            "fresh_crossover": fresh_golden or fresh_death,
         },
     }
 
 
 def _signal_rsi_mean_reversion(df: pd.DataFrame) -> dict:
     delta = df["close"].diff()
-    gain  = delta.clip(lower=0).rolling(14).mean()
-    loss  = (-delta.clip(upper=0)).rolling(14).mean()
-    rs    = gain / loss.replace(0, np.nan)
-    rsi   = 100 - 100 / (1 + rs)
+    gain = delta.clip(lower=0).rolling(14).mean()
+    loss = (-delta.clip(upper=0)).rolling(14).mean()
+    rs = gain / loss.replace(0, np.nan)
+    rsi = 100 - 100 / (1 + rs)
     if rsi.isna().all() or len(rsi.dropna()) < 2:
         return _no_data()
 
@@ -421,12 +446,15 @@ def _signal_rsi_mean_reversion(df: pd.DataFrame) -> dict:
 
     sl, tp = _stops(price, atr14, sig)
     return {
-        "signal": sig, "strength": round(strength, 2), "rationale": rationale,
+        "signal": sig,
+        "strength": round(strength, 2),
+        "rationale": rationale,
         "entry_price": round(price, 2),
         "stop_loss": sl if sig != "HOLD" else None,
         "target_price": tp if sig != "HOLD" else None,
         "key_metrics": {
-            "rsi": round(curr, 1), "rsi_prev": round(prev, 1),
+            "rsi": round(curr, 1),
+            "rsi_prev": round(prev, 1),
             "rsi_trend": "rising" if curr > prev else "falling",
         },
     }
@@ -434,9 +462,9 @@ def _signal_rsi_mean_reversion(df: pd.DataFrame) -> dict:
 
 def _signal_macd_momentum(df: pd.DataFrame) -> dict:
     close = df["close"]
-    macd  = close.ewm(span=12).mean() - close.ewm(span=26).mean()
+    macd = close.ewm(span=12).mean() - close.ewm(span=26).mean()
     sig_l = macd.ewm(span=9).mean()
-    hist  = macd - sig_l
+    hist = macd - sig_l
 
     if len(hist.dropna()) < 2:
         return _no_data()
@@ -466,44 +494,50 @@ def _signal_macd_momentum(df: pd.DataFrame) -> dict:
         rationale = f"MACD above signal; histogram expanding ({ch:+.3f}). Upward momentum building."
     elif cm < cs and ch < ph:
         sig, strength = "SELL", 0.52
-        rationale = f"MACD below signal; histogram expanding downward ({ch:+.3f}). Selling pressure."
+        rationale = (
+            f"MACD below signal; histogram expanding downward ({ch:+.3f}). Selling pressure."
+        )
     else:
         sig, strength = "HOLD", 0.35
         rationale = f"MACD ({cm:+.3f}) near signal line ({cs:+.3f}). No clear momentum signal."
 
     sl, tp = _stops(price, atr14, sig)
     return {
-        "signal": sig, "strength": round(strength, 2), "rationale": rationale,
+        "signal": sig,
+        "strength": round(strength, 2),
+        "rationale": rationale,
         "entry_price": round(price, 2),
         "stop_loss": sl if sig != "HOLD" else None,
         "target_price": tp if sig != "HOLD" else None,
         "key_metrics": {
-            "macd": round(cm, 3), "signal_line": round(cs, 3),
-            "histogram": round(ch, 3), "crossover": bull_cross or bear_cross,
+            "macd": round(cm, 3),
+            "signal_line": round(cs, 3),
+            "histogram": round(ch, 3),
+            "crossover": bull_cross or bear_cross,
         },
     }
 
 
 def _signal_bollinger_breakout(df: pd.DataFrame) -> dict:
     close = df["close"]
-    mid   = close.rolling(20).mean()
-    std   = close.rolling(20).std()
+    mid = close.rolling(20).mean()
+    std = close.rolling(20).std()
     upper = mid + 2 * std
     lower = mid - 2 * std
-    bw    = (upper - lower) / mid  # bandwidth
+    bw = (upper - lower) / mid  # bandwidth
 
     if mid.isna().all():
         return _no_data()
 
-    price  = float(close.iloc[-1])
-    cup    = float(upper.iloc[-1])
-    clo    = float(lower.iloc[-1])
-    cmid   = float(mid.iloc[-1])
-    cbw    = float(bw.iloc[-1])
+    price = float(close.iloc[-1])
+    cup = float(upper.iloc[-1])
+    clo = float(lower.iloc[-1])
+    cmid = float(mid.iloc[-1])
+    cbw = float(bw.iloc[-1])
     avg_bw = float(bw.rolling(50).mean().iloc[-1]) if len(bw.dropna()) >= 50 else cbw
-    atr14  = float(_atr(df).iloc[-1])
+    atr14 = float(_atr(df).iloc[-1])
 
-    bb_pct  = (price - clo) / (cup - clo) if (cup - clo) > 0 else 0.5
+    bb_pct = (price - clo) / (cup - clo) if (cup - clo) > 0 else 0.5
     squeeze = cbw < avg_bw * 0.75 if not np.isnan(avg_bw) else False
 
     if price > cup:
@@ -512,13 +546,17 @@ def _signal_bollinger_breakout(df: pd.DataFrame) -> dict:
         rationale = f"Price ({price:.1f}) broke above upper BB ({cup:.1f}){sq_note}. Strong bullish momentum."
     elif price < clo:
         sig, strength = "SELL", 0.82
-        rationale = f"Price ({price:.1f}) broke below lower BB ({clo:.1f}). Bearish breakdown confirmed."
+        rationale = (
+            f"Price ({price:.1f}) broke below lower BB ({clo:.1f}). Bearish breakdown confirmed."
+        )
     elif bb_pct > 0.85:
         sig, strength = "BUY", 0.52
         rationale = f"Price approaching upper BB (%B = {bb_pct:.2f}). Potential breakout setup — watch closely."
     elif bb_pct < 0.15:
         sig, strength = "SELL", 0.52
-        rationale = f"Price approaching lower BB (%B = {bb_pct:.2f}). Potential breakdown — watch closely."
+        rationale = (
+            f"Price approaching lower BB (%B = {bb_pct:.2f}). Potential breakdown — watch closely."
+        )
     elif squeeze:
         sig, strength = "HOLD", 0.65
         rationale = f"Bollinger Squeeze: BW {cbw:.3f} vs avg {avg_bw:.3f}. Explosive move imminent — wait for direction."
@@ -528,21 +566,26 @@ def _signal_bollinger_breakout(df: pd.DataFrame) -> dict:
 
     sl, tp = _stops(price, atr14, sig)
     return {
-        "signal": sig, "strength": round(strength, 2), "rationale": rationale,
+        "signal": sig,
+        "strength": round(strength, 2),
+        "rationale": rationale,
         "entry_price": round(price, 2),
         "stop_loss": sl if sig != "HOLD" else None,
         "target_price": tp if sig != "HOLD" else None,
         "key_metrics": {
-            "upper_band": round(cup, 2), "lower_band": round(clo, 2),
-            "middle_band": round(cmid, 2), "bb_pct_b": round(bb_pct, 3),
-            "bandwidth": round(cbw, 3), "squeeze": squeeze,
+            "upper_band": round(cup, 2),
+            "lower_band": round(clo, 2),
+            "middle_band": round(cmid, 2),
+            "bb_pct_b": round(bb_pct, 3),
+            "bandwidth": round(cbw, 3),
+            "squeeze": squeeze,
         },
     }
 
 
 def _signal_ema_ribbon(df: pd.DataFrame) -> dict:
     close = df["close"]
-    e9  = close.ewm(span=9).mean()
+    e9 = close.ewm(span=9).mean()
     e21 = close.ewm(span=21).mean()
     e55 = close.ewm(span=55).mean()
 
@@ -556,7 +599,9 @@ def _signal_ema_ribbon(df: pd.DataFrame) -> dict:
         rationale = f"Strong EMA ribbon uptrend: 9({v9:.1f}) > 21({v21:.1f}) > 55({v55:.1f}). Spread {spread:+.2f}%."
     elif v9 > v21 > v55:
         sig, strength = "BUY", 0.62
-        rationale = f"EMA ribbon bullish but tight ({spread:+.2f}%). Early uptrend — momentum building."
+        rationale = (
+            f"EMA ribbon bullish but tight ({spread:+.2f}%). Early uptrend — momentum building."
+        )
     elif v9 < v21 < v55 and abs(spread) > 1.5:
         sig, strength = "SELL", 0.88
         rationale = f"Strong EMA ribbon downtrend: 9({v9:.1f}) < 21({v21:.1f}) < 55({v55:.1f}). Spread {spread:+.2f}%."
@@ -565,20 +610,28 @@ def _signal_ema_ribbon(df: pd.DataFrame) -> dict:
         rationale = f"EMA ribbon bearish but tight ({spread:+.2f}%). Early downtrend."
     elif v9 > v55:
         sig, strength = "BUY", 0.42
-        rationale = f"Partially bullish: 9 EMA above 55 EMA, but 21 EMA misaligned. Transition in progress."
+        rationale = (
+            "Partially bullish: 9 EMA above 55 EMA, but 21 EMA misaligned. Transition in progress."
+        )
     else:
         sig, strength = "HOLD", 0.30
-        rationale = f"EMA ribbon compressed/mixed (spread {spread:+.2f}%). No clear trend direction."
+        rationale = (
+            f"EMA ribbon compressed/mixed (spread {spread:+.2f}%). No clear trend direction."
+        )
 
     sl = round(v21 - atr14, 2) if sig == "BUY" else round(v21 + atr14, 2)
     tp = round(price + 3 * atr14, 2) if sig == "BUY" else round(price - 3 * atr14, 2)
     return {
-        "signal": sig, "strength": round(strength, 2), "rationale": rationale,
+        "signal": sig,
+        "strength": round(strength, 2),
+        "rationale": rationale,
         "entry_price": round(price, 2),
         "stop_loss": sl if sig != "HOLD" else None,
         "target_price": tp if sig != "HOLD" else None,
         "key_metrics": {
-            "ema_9": round(v9, 2), "ema_21": round(v21, 2), "ema_55": round(v55, 2),
+            "ema_9": round(v9, 2),
+            "ema_21": round(v21, 2),
+            "ema_55": round(v55, 2),
             "ribbon_spread_pct": round(spread, 2),
             "alignment": "bullish" if v9 > v21 > v55 else "bearish" if v9 < v21 < v55 else "mixed",
         },
@@ -586,30 +639,34 @@ def _signal_ema_ribbon(df: pd.DataFrame) -> dict:
 
 
 def _signal_volume_breakout(df: pd.DataFrame) -> dict:
-    close  = df["close"]
+    close = df["close"]
     volume = df["volume"]
-    avg_vol   = volume.rolling(20).mean()
+    avg_vol = volume.rolling(20).mean()
     vol_ratio = volume / avg_vol
-    chg_pct   = close.pct_change() * 100
+    chg_pct = close.pct_change() * 100
 
     if vol_ratio.isna().all():
         return _no_data()
 
-    cvr  = float(vol_ratio.iloc[-1])
+    cvr = float(vol_ratio.iloc[-1])
     cchg = float(chg_pct.iloc[-1])
     price = float(close.iloc[-1])
     atr14 = float(_atr(df).iloc[-1])
     avg_v = float(avg_vol.iloc[-1])
     cur_v = float(volume.iloc[-1])
     recent_surge = float(vol_ratio.iloc[-3:].max())
-    recent_chg   = float(chg_pct.iloc[-3:].sum())
+    recent_chg = float(chg_pct.iloc[-3:].sum())
 
     if cvr >= 2.0 and cchg >= 2.0:
         sig, strength = "BUY", min(0.95, 0.62 + cvr * 0.04)
-        rationale = f"Volume surge TODAY: {cvr:.1f}× avg with +{cchg:.1f}% price move. Strong accumulation."
+        rationale = (
+            f"Volume surge TODAY: {cvr:.1f}× avg with +{cchg:.1f}% price move. Strong accumulation."
+        )
     elif cvr >= 2.0 and cchg <= -2.0:
         sig, strength = "SELL", min(0.95, 0.62 + cvr * 0.04)
-        rationale = f"Volume surge TODAY: {cvr:.1f}× avg with {cchg:.1f}% price drop. Heavy distribution."
+        rationale = (
+            f"Volume surge TODAY: {cvr:.1f}× avg with {cchg:.1f}% price drop. Heavy distribution."
+        )
     elif recent_surge >= 2.0 and recent_chg >= 3.0:
         sig, strength = "BUY", 0.62
         rationale = f"Recent volume surge ({recent_surge:.1f}× avg, +{recent_chg:.1f}% 3-day). Post-breakout continuation."
@@ -625,7 +682,9 @@ def _signal_volume_breakout(df: pd.DataFrame) -> dict:
 
     sl, tp = _stops(price, atr14, sig)
     return {
-        "signal": sig, "strength": round(strength, 2), "rationale": rationale,
+        "signal": sig,
+        "strength": round(strength, 2),
+        "rationale": rationale,
         "entry_price": round(price, 2),
         "stop_loss": sl if sig != "HOLD" else None,
         "target_price": tp if sig != "HOLD" else None,
@@ -648,14 +707,14 @@ def _signal_donchian_breakout(df: pd.DataFrame) -> dict:
     if h20.isna().all():
         return _no_data()
 
-    price  = float(close.iloc[-1])
-    ch20   = float(h20.iloc[-1])
-    cl20   = float(l20.iloc[-1])
-    ch10   = float(h10.iloc[-1]) if not pd.isna(h10.iloc[-1]) else ch20
-    cl10   = float(l10.iloc[-1]) if not pd.isna(l10.iloc[-1]) else cl20
-    atr14  = float(_atr(df).iloc[-1])
-    width  = (ch20 - cl20) / cl20 * 100
-    pos    = (price - cl20) / (ch20 - cl20) * 100 if (ch20 - cl20) > 0 else 50
+    price = float(close.iloc[-1])
+    ch20 = float(h20.iloc[-1])
+    cl20 = float(l20.iloc[-1])
+    ch10 = float(h10.iloc[-1]) if not pd.isna(h10.iloc[-1]) else ch20
+    cl10 = float(l10.iloc[-1]) if not pd.isna(l10.iloc[-1]) else cl20
+    atr14 = float(_atr(df).iloc[-1])
+    width = (ch20 - cl20) / cl20 * 100
+    pos = (price - cl20) / (ch20 - cl20) * 100 if (ch20 - cl20) > 0 else 50
 
     if price > ch20:
         sig, strength = "BUY", 0.82
@@ -668,21 +727,27 @@ def _signal_donchian_breakout(df: pd.DataFrame) -> dict:
         rationale = f"Price at {pos:.0f}% of channel, approaching 20-day high ({ch20:.1f}). Breakout setup forming."
     elif pos < 25:
         sig, strength = "SELL", 0.52
-        rationale = f"Price at {pos:.0f}% of channel, near 20-day low ({cl20:.1f}). Watch for breakdown."
+        rationale = (
+            f"Price at {pos:.0f}% of channel, near 20-day low ({cl20:.1f}). Watch for breakdown."
+        )
     else:
         sig, strength = "HOLD", 0.30
         rationale = f"Price mid-channel ({pos:.0f}%). Range {cl20:.1f}–{ch20:.1f} (width {width:.1f}%). Awaiting breakout."
 
     stop = cl10 if sig == "BUY" else ch10
-    tp   = round(price + 3 * atr14, 2) if sig == "BUY" else round(price - 3 * atr14, 2)
+    tp = round(price + 3 * atr14, 2) if sig == "BUY" else round(price - 3 * atr14, 2)
     return {
-        "signal": sig, "strength": round(strength, 2), "rationale": rationale,
+        "signal": sig,
+        "strength": round(strength, 2),
+        "rationale": rationale,
         "entry_price": round(price, 2),
         "stop_loss": round(stop, 2) if sig != "HOLD" else None,
         "target_price": tp if sig != "HOLD" else None,
         "key_metrics": {
-            "high_20d": round(ch20, 2), "low_20d": round(cl20, 2),
-            "exit_high_10d": round(ch10, 2), "exit_low_10d": round(cl10, 2),
+            "high_20d": round(ch20, 2),
+            "low_20d": round(cl20, 2),
+            "exit_high_10d": round(ch10, 2),
+            "exit_low_10d": round(cl10, 2),
             "channel_width_pct": round(width, 2),
             "position_in_channel_pct": round(pos, 1),
         },
@@ -698,9 +763,9 @@ def _signal_supertrend(df: pd.DataFrame) -> dict:
 
     curr_dir = int(direction.iloc[-1])
     prev_dir = int(direction.iloc[-2])
-    curr_st  = float(supertrend.iloc[-1])
-    price    = float(close.iloc[-1])
-    atr14    = float(_atr(df).iloc[-1])
+    curr_st = float(supertrend.iloc[-1])
+    price = float(close.iloc[-1])
+    atr14 = float(_atr(df).iloc[-1])
 
     days_in = 0
     for d in direction.iloc[::-1]:
@@ -728,10 +793,14 @@ def _signal_supertrend(df: pd.DataFrame) -> dict:
         rationale = f"Supertrend bearish {days_in} days. Price {dist:.1f}% below dynamic resistance ({curr_st:.1f})."
 
     return {
-        "signal": sig, "strength": round(strength, 2), "rationale": rationale,
+        "signal": sig,
+        "strength": round(strength, 2),
+        "rationale": rationale,
         "entry_price": round(price, 2),
         "stop_loss": round(curr_st, 2),
-        "target_price": round(price + 3 * atr14, 2) if sig == "BUY" else round(price - 3 * atr14, 2),
+        "target_price": round(price + 3 * atr14, 2)
+        if sig == "BUY"
+        else round(price - 3 * atr14, 2),
         "key_metrics": {
             "supertrend_level": round(curr_st, 2),
             "direction": "bullish" if curr_dir == 1 else "bearish",
@@ -747,14 +816,14 @@ def _signal_supertrend(df: pd.DataFrame) -> dict:
 # ─────────────────────────────────────────────────────────────────────────────
 
 _SIGNAL_FNS = {
-    "golden_cross":       _signal_golden_cross,
+    "golden_cross": _signal_golden_cross,
     "rsi_mean_reversion": _signal_rsi_mean_reversion,
-    "macd_momentum":      _signal_macd_momentum,
+    "macd_momentum": _signal_macd_momentum,
     "bollinger_breakout": _signal_bollinger_breakout,
-    "ema_ribbon":         _signal_ema_ribbon,
-    "volume_breakout":    _signal_volume_breakout,
-    "donchian_breakout":  _signal_donchian_breakout,
-    "supertrend":         _signal_supertrend,
+    "ema_ribbon": _signal_ema_ribbon,
+    "volume_breakout": _signal_volume_breakout,
+    "donchian_breakout": _signal_donchian_breakout,
+    "supertrend": _signal_supertrend,
 }
 
 
@@ -777,6 +846,7 @@ def generate_signal(symbol: str, strategy_id: str) -> dict:
 # Vectorized signal series (for backtest — compute once, walk through)
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def _signal_series(df: pd.DataFrame, strategy_id: str, params: dict | None = None) -> pd.Series:
     """Return a daily BUY/SELL/HOLD series for the whole dataframe.
 
@@ -784,8 +854,8 @@ def _signal_series(df: pd.DataFrame, strategy_id: str, params: dict | None = Non
     {"fast_period": 20, "slow_period": 100} for golden_cross.
     """
     p = params or {}
-    close  = df["close"]
-    sig    = pd.Series("HOLD", index=df.index)
+    close = df["close"]
+    sig = pd.Series("HOLD", index=df.index)
 
     if strategy_id == "golden_cross":
         fast = int(p.get("fast_period", 50))
@@ -800,8 +870,11 @@ def _signal_series(df: pd.DataFrame, strategy_id: str, params: dict | None = Non
         oversold = p.get("rsi_oversold", 30)
         overbought = p.get("rsi_overbought", 70)
         delta = close.diff()
-        rsi   = 100 - 100 / (1 + delta.clip(lower=0).rolling(rsi_period).mean() /
-                              (-delta.clip(upper=0)).rolling(rsi_period).mean().replace(0, np.nan))
+        rsi = 100 - 100 / (
+            1
+            + delta.clip(lower=0).rolling(rsi_period).mean()
+            / (-delta.clip(upper=0)).rolling(rsi_period).mean().replace(0, np.nan)
+        )
         sig[rsi < oversold] = "BUY"
         sig[rsi > overbought] = "SELL"
 
@@ -809,7 +882,7 @@ def _signal_series(df: pd.DataFrame, strategy_id: str, params: dict | None = Non
         fast = int(p.get("fast", 12))
         slow = int(p.get("slow", 26))
         signal_p = int(p.get("signal", 9))
-        macd  = close.ewm(span=fast).mean() - close.ewm(span=slow).mean()
+        macd = close.ewm(span=fast).mean() - close.ewm(span=slow).mean()
         signal_l = macd.ewm(span=signal_p).mean()
         sig[macd > signal_l] = "BUY"
         sig[macd < signal_l] = "SELL"
@@ -817,13 +890,13 @@ def _signal_series(df: pd.DataFrame, strategy_id: str, params: dict | None = Non
     elif strategy_id == "bollinger_breakout":
         bb_period = int(p.get("bb_period", 20))
         bb_std = p.get("bb_std", 2.0)
-        mid   = close.rolling(bb_period).mean()
-        std   = close.rolling(bb_period).std()
+        mid = close.rolling(bb_period).mean()
+        std = close.rolling(bb_period).std()
         sig[close > mid + bb_std * std] = "BUY"
         sig[close < mid - bb_std * std] = "SELL"
 
     elif strategy_id == "ema_ribbon":
-        e9  = close.ewm(span=int(p.get("fast", 9))).mean()
+        e9 = close.ewm(span=int(p.get("fast", 9))).mean()
         e21 = close.ewm(span=int(p.get("mid", 21))).mean()
         e55 = close.ewm(span=int(p.get("slow", 55))).mean()
         sig[(e9 > e21) & (e21 > e55)] = "BUY"
@@ -834,9 +907,9 @@ def _signal_series(df: pd.DataFrame, strategy_id: str, params: dict | None = Non
         pchg = p.get("price_change_pct", 2.0)
         lookback = int(p.get("lookback", 20))
         avg_vol = df["volume"].rolling(lookback).mean()
-        vr  = df["volume"] / avg_vol
+        vr = df["volume"] / avg_vol
         chg = close.pct_change() * 100
-        sig[(vr >= vol_mult) & (chg >= pchg)]  = "BUY"
+        sig[(vr >= vol_mult) & (chg >= pchg)] = "BUY"
         sig[(vr >= vol_mult) & (chg <= -pchg)] = "SELL"
 
     elif strategy_id == "donchian_breakout":
@@ -850,7 +923,7 @@ def _signal_series(df: pd.DataFrame, strategy_id: str, params: dict | None = Non
         atr_p = int(p.get("atr_period", 10))
         mult = p.get("multiplier", 3.0)
         _, direction = _compute_supertrend(df, atr_period=atr_p, multiplier=mult)
-        sig[direction == 1]  = "BUY"
+        sig[direction == 1] = "BUY"
         sig[direction == -1] = "SELL"
 
     return sig
@@ -859,6 +932,7 @@ def _signal_series(df: pd.DataFrame, strategy_id: str, params: dict | None = Non
 # ─────────────────────────────────────────────────────────────────────────────
 # Backtest
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def backtest_strategy(
     symbol: str,
@@ -907,25 +981,25 @@ def backtest_strategy(
 
     signals = _signal_series(df_bt, strategy_id, params)
 
-    trades       = []
-    in_position  = False
-    entry_price  = 0.0
-    entry_date   = None
-    equity       = 100_000.0
-    peak_equity  = equity
+    trades = []
+    in_position = False
+    entry_price = 0.0
+    entry_date = None
+    equity = 100_000.0
+    peak_equity = equity
     max_drawdown = 0.0
     equity_curve = []
-    total_costs  = 0.0
+    total_costs = 0.0
 
     for i in range(len(df_bt)):
         price = float(df_bt["close"].iloc[i])
-        date  = df_bt.index[i]
-        sig   = signals.iloc[i]
+        date = df_bt.index[i]
+        sig = signals.iloc[i]
 
         if sig == "BUY" and not in_position:
             in_position = True
             entry_price = price
-            entry_date  = date
+            entry_date = date
             # Apply buy-side transaction costs
             if include_costs:
                 shares = int(equity / price)
@@ -933,8 +1007,8 @@ def backtest_strategy(
                 equity -= cost
                 total_costs += cost
         elif sig == "SELL" and in_position:
-            ret    = (price - entry_price) / entry_price
-            pnl    = equity * ret
+            ret = (price - entry_price) / entry_price
+            pnl = equity * ret
             equity += pnl
             # Apply sell-side transaction costs
             if include_costs:
@@ -942,15 +1016,17 @@ def backtest_strategy(
                 cost = calculate_transaction_cost(price, max(shares, 1), "sell", exchange)
                 equity -= cost
                 total_costs += cost
-            trades.append({
-                "entry_date":   str(entry_date.date()),
-                "exit_date":    str(date.date()),
-                "entry_price":  round(entry_price, 2),
-                "exit_price":   round(price, 2),
-                "return_pct":   round(ret * 100, 2),
-                "pnl":          round(pnl, 2),
-                "result":       "WIN" if ret > 0 else "LOSS",
-            })
+            trades.append(
+                {
+                    "entry_date": str(entry_date.date()),
+                    "exit_date": str(date.date()),
+                    "entry_price": round(entry_price, 2),
+                    "exit_price": round(price, 2),
+                    "return_pct": round(ret * 100, 2),
+                    "pnl": round(pnl, 2),
+                    "result": "WIN" if ret > 0 else "LOSS",
+                }
+            )
             in_position = False
 
         portfolio_val = equity
@@ -958,53 +1034,56 @@ def backtest_strategy(
             unrealized_ret = (price - entry_price) / entry_price
             portfolio_val = equity * (1 + unrealized_ret)
 
-        peak_equity  = max(peak_equity, portfolio_val)
-        drawdown     = (peak_equity - portfolio_val) / peak_equity * 100
+        peak_equity = max(peak_equity, portfolio_val)
+        drawdown = (peak_equity - portfolio_val) / peak_equity * 100
         max_drawdown = max(max_drawdown, drawdown)
         equity_curve.append(round(portfolio_val, 2))
 
     if in_position:
         last_price = float(df_bt["close"].iloc[-1])
-        ret    = (last_price - entry_price) / entry_price
-        pnl    = equity * ret
+        ret = (last_price - entry_price) / entry_price
+        pnl = equity * ret
         equity += pnl
-        trades.append({
-            "entry_date":   str(entry_date.date()),
-            "exit_date":    "open",
-            "entry_price":  round(entry_price, 2),
-            "exit_price":   round(last_price, 2),
-            "return_pct":   round(ret * 100, 2),
-            "pnl":          round(pnl, 2),
-            "result":       "OPEN",
-        })
+        trades.append(
+            {
+                "entry_date": str(entry_date.date()),
+                "exit_date": "open",
+                "entry_price": round(entry_price, 2),
+                "exit_price": round(last_price, 2),
+                "return_pct": round(ret * 100, 2),
+                "pnl": round(pnl, 2),
+                "result": "OPEN",
+            }
+        )
 
-    total   = len(trades)
+    total = len(trades)
     winning = sum(1 for t in trades if t["result"] == "WIN")
     total_return = (equity - 100_000) / 100_000 * 100
 
     eq_s = pd.Series(equity_curve)
-    dr   = eq_s.pct_change().dropna()
+    dr = eq_s.pct_change().dropna()
     sharpe = float(dr.mean() / dr.std() * np.sqrt(252)) if len(dr) > 1 and dr.std() > 0 else 0.0
 
     bh_start = float(df_bt["close"].iloc[0])
-    bh_end   = float(df_bt["close"].iloc[-1])
+    bh_end = float(df_bt["close"].iloc[-1])
     bh_return = (bh_end - bh_start) / bh_start * 100
 
     result = {
-        "symbol":                symbol,
-        "strategy_id":           strategy_id,
-        "period_days":           effective_days,
-        "total_trades":          total,
-        "winning_trades":        winning,
-        "losing_trades":         total - winning,
-        "win_rate":              round(winning / total * 100, 1) if total > 0 else 0,
-        "total_return_pct":      round(total_return, 2),
-        "max_drawdown_pct":      round(max_drawdown, 2),
-        "sharpe_ratio":          round(sharpe, 2),
+        "symbol": symbol,
+        "strategy_id": strategy_id,
+        "period_days": effective_days,
+        "total_trades": total,
+        "winning_trades": winning,
+        "losing_trades": total - winning,
+        "win_rate": round(winning / total * 100, 1) if total > 0 else 0,
+        "total_return_pct": round(total_return, 2),
+        "max_drawdown_pct": round(max_drawdown, 2),
+        "sharpe_ratio": round(sharpe, 2),
         "buy_and_hold_return_pct": round(bh_return, 2),
-        "final_equity":          round(equity, 2),
-        "equity_curve":          equity_curve[::5] + ([equity_curve[-1]] if len(equity_curve) % 5 != 1 else []),
-        "trades":                trades[-15:],
+        "final_equity": round(equity, 2),
+        "equity_curve": equity_curve[::5]
+        + ([equity_curve[-1]] if len(equity_curve) % 5 != 1 else []),
+        "trades": trades[-15:],
         "total_transaction_costs": round(total_costs, 2),
     }
 

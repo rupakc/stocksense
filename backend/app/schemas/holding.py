@@ -5,7 +5,9 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class HoldingCreate(BaseModel):
-    symbol: str = Field(..., min_length=1, max_length=30, description="Full symbol e.g. RELIANCE.NS")
+    symbol: str = Field(
+        ..., min_length=1, max_length=30, description="Full symbol e.g. RELIANCE.NS"
+    )
     quantity: float = Field(..., gt=0, le=1_000_000_000)
     buy_price: float = Field(..., gt=0, le=1_000_000_000)
     buy_date: datetime
@@ -15,6 +17,7 @@ class HoldingCreate(BaseModel):
     @classmethod
     def validate_symbol(cls, v):
         import re
+
         if not re.match(r"^[A-Z0-9&\.\-]{1,20}(\.(NS|BO))?$", v):
             raise ValueError("Invalid symbol format")
         return v

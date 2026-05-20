@@ -181,7 +181,7 @@ export default function Screener() {
     if (sector) p.sector = sector
     if (mcapTier > 0) {
       p.min_market_cap = MCAP_OPTIONS[mcapTier].value
-      if (MCAP_OPTIONS[mcapTier].max != null) p.max_market_cap = MCAP_OPTIONS[mcapTier].max
+      if (MCAP_OPTIONS[mcapTier].max !== null) p.max_market_cap = MCAP_OPTIONS[mcapTier].max
     }
     if (maxPe) p.max_pe = parseFloat(maxPe)
     if (minDividend) p.min_dividend_yield = parseFloat(minDividend) / 100
@@ -636,7 +636,7 @@ function StockRow({ stock }) {
                 'text-[10px] font-medium',
                 Math.abs(stock.pct_from_52w_high) <= 5 ? 'text-emerald-600' : 'text-slate-400',
               )}>
-                {stock.pct_from_52w_high != null ? stock.pct_from_52w_high.toFixed(1) : '--'}% from high
+                {stock.pct_from_52w_high !== null && stock.pct_from_52w_high !== undefined ? stock.pct_from_52w_high.toFixed(1) : '--'}% from high
               </span>
             )}
           </div>

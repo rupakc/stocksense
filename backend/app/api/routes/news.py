@@ -24,13 +24,11 @@ async def get_news(
     await news_service.refresh(db=db)
     from sqlalchemy import select, desc
     from app.db.models import NewsArticle
+
     q = select(NewsArticle).order_by(desc(NewsArticle.published_at)).limit(limit)
     if symbol:
         base = symbol.replace(".NS", "").replace(".BO", "").lower()
-        q = q.where(
-            NewsArticle.title.ilike(f"%{base}%") |
-            NewsArticle.summary.ilike(f"%{base}%")
-        )
+        q = q.where(NewsArticle.title.ilike(f"%{base}%") | NewsArticle.summary.ilike(f"%{base}%"))
     result = await db.execute(q)
     return result.scalars().all()
 
@@ -47,6 +45,7 @@ async def web_search_news(
     Results are relevance-scored for stock price prediction utility.
     """
     from app.core.exchanges import get_suffix
+
     bare = symbol.replace(".NS", "").replace(".BO", "").upper()
     suffix = get_suffix(exchange.upper())
     full_symbol = f"{bare}{suffix}"

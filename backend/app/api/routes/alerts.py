@@ -23,9 +23,7 @@ async def list_alerts(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(Alert)
-        .where(Alert.user_id == current_user.id)
-        .order_by(Alert.created_at.desc())
+        select(Alert).where(Alert.user_id == current_user.id).order_by(Alert.created_at.desc())
     )
     return result.scalars().all()
 
@@ -37,7 +35,9 @@ async def create_alert(
     current_user: User = Depends(get_current_user),
 ):
     if req.alert_type not in ALERT_TYPES:
-        raise HTTPException(status_code=400, detail=f"Invalid alert_type. Must be one of: {ALERT_TYPES}")
+        raise HTTPException(
+            status_code=400, detail=f"Invalid alert_type. Must be one of: {ALERT_TYPES}"
+        )
 
     alert = Alert(
         user_id=current_user.id,
@@ -65,7 +65,9 @@ async def update_alert(
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
     if req.alert_type not in ALERT_TYPES:
-        raise HTTPException(status_code=400, detail=f"Invalid alert_type. Must be one of: {ALERT_TYPES}")
+        raise HTTPException(
+            status_code=400, detail=f"Invalid alert_type. Must be one of: {ALERT_TYPES}"
+        )
     alert.alert_type = req.alert_type
     alert.threshold = req.threshold
     alert.is_active = True
@@ -97,16 +99,22 @@ async def get_triggered_alerts(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(Alert).where(
+        select(Alert)
+        .where(
             Alert.user_id == current_user.id,
             Alert.triggered_at.isnot(None),
-        ).order_by(Alert.triggered_at.desc()).limit(50)
+        )
+        .order_by(Alert.triggered_at.desc())
+        .limit(50)
     )
     alerts = result.scalars().all()
     return [
         TriggeredAlert(
-            id=a.id, symbol=a.symbol, alert_type=a.alert_type,
-            threshold=a.threshold, current_value=a.triggered_value if a.triggered_value is not None else a.threshold,
+            id=a.id,
+            symbol=a.symbol,
+            alert_type=a.alert_type,
+            threshold=a.threshold,
+            current_value=a.triggered_value if a.triggered_value is not None else a.threshold,
             triggered_at=a.triggered_at,
         )
         for a in alerts
@@ -119,7 +127,7 @@ async def check_alerts(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(Alert).where(Alert.user_id == current_user.id, Alert.is_active == True)
+        select(Alert).where(Alert.user_id == current_user.id, Alert.is_active.is_(True))
     )
     active_alerts = result.scalars().all()
     if not active_alerts:
@@ -163,11 +171,16 @@ async def check_alerts(
             alert.triggered_at = now
             alert.triggered_value = current_val
             alert.is_active = False
-            triggered.append(TriggeredAlert(
-                id=alert.id, symbol=alert.symbol, alert_type=alert.alert_type,
-                threshold=alert.threshold, current_value=current_val,
-                triggered_at=now,
-            ))
+            triggered.append(
+                TriggeredAlert(
+                    id=alert.id,
+                    symbol=alert.symbol,
+                    alert_type=alert.alert_type,
+                    threshold=alert.threshold,
+                    current_value=current_val,
+                    triggered_at=now,
+                )
+            )
 
     await db.commit()
     return triggered

@@ -38,7 +38,9 @@ async def get_prediction(
         background_tasks.add_task(_train_symbol, symbol, horizon_days)
         return JSONResponse(
             status_code=202,
-            content={"detail": f"No prediction available yet for {symbol}. Training has been queued."},
+            content={
+                "detail": f"No prediction available yet for {symbol}. Training has been queued."
+            },
         )
 
     raise HTTPException(
@@ -105,9 +107,7 @@ async def retrain_all(
     if not symbols:
         return {"message": "Watchlist is empty", "count": 0, "symbols": []}
 
-    await db.execute(
-        delete(PredictionResult).where(PredictionResult.symbol.in_(symbols))
-    )
+    await db.execute(delete(PredictionResult).where(PredictionResult.symbol.in_(symbols)))
     await db.commit()
     logger.info(f"[retrain-all] Cleared old predictions for {symbols}")
 
@@ -126,6 +126,7 @@ async def retrain_all(
 # ---------------------------------------------------------------------------
 # Background helper — owns its own DB session, per-symbol lock
 # ---------------------------------------------------------------------------
+
 
 async def _train_symbol(symbol: str, horizon_days: int = 30) -> None:
     """Train one symbol with a fresh async session (safe for background tasks).
@@ -152,9 +153,7 @@ async def _train_symbol(symbol: str, horizon_days: int = 30) -> None:
             await fetcher.fetch_and_store(symbol, period="2y", db=db, force=False)
 
             # Verify we have enough data before kicking off the slow Prophet fit
-            count_result = await db.execute(
-                select(func.count()).where(StockPrice.symbol == symbol)
-            )
+            count_result = await db.execute(select(func.count()).where(StockPrice.symbol == symbol))
             row_count = count_result.scalar() or 0
             logger.info(f"[retrain] {symbol}: {row_count} price rows in DB")
 
@@ -189,6 +188,7 @@ async def _train_symbol_full(symbol: str, horizon_days: int = 30) -> None:
     try:
         async with AsyncSessionLocal() as db:
             from app.services.market_data.nse_fetcher import NSEFetcher
+
             fetcher = NSEFetcher()
             await fetcher.fetch_and_store(symbol, period="2y", db=db, force=False)
             logger.info(f"[full-train] Starting Prophet+GBM for {symbol}")

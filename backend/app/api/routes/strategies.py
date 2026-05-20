@@ -45,7 +45,7 @@ async def get_signals(
 
     result = await db.execute(
         select(WatchedSymbol.symbol).where(
-            WatchedSymbol.is_active == True,
+            WatchedSymbol.is_active.is_(True),
             WatchedSymbol.user_id == current_user.id,
         )
     )
@@ -62,7 +62,9 @@ async def get_signals(
         except Exception as exc:
             logger.warning(f"Signal generation failed for {sym}: {exc}")
             return {
-                "symbol": sym, "signal": "HOLD", "strength": 0.0,
+                "symbol": sym,
+                "signal": "HOLD",
+                "strength": 0.0,
                 "rationale": f"Signal generation error: {exc}",
             }
 
@@ -95,8 +97,11 @@ async def run_backtest_get(
         raise HTTPException(status_code=404, detail=f"Strategy '{strategy_id}' not found")
 
     result = backtest_strategy(
-        symbol.upper(), strategy_id, lookback_days,
-        start_date=start_date, end_date=end_date,
+        symbol.upper(),
+        strategy_id,
+        lookback_days,
+        start_date=start_date,
+        end_date=end_date,
         include_costs=include_costs,
     )
     if "error" in result:
@@ -117,9 +122,13 @@ async def run_backtest_post(
 
     req = body or BacktestRequest()
     result = backtest_strategy(
-        symbol.upper(), strategy_id, req.lookback_days,
-        start_date=req.start_date, end_date=req.end_date,
-        params=req.params, include_costs=req.include_costs,
+        symbol.upper(),
+        strategy_id,
+        req.lookback_days,
+        start_date=req.start_date,
+        end_date=req.end_date,
+        params=req.params,
+        include_costs=req.include_costs,
     )
     if "error" in result:
         raise HTTPException(status_code=422, detail=result["error"])

@@ -7,7 +7,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
-from app.core.security import create_access_token, hash_password, validate_password_strength, verify_password
+from app.core.security import (
+    create_access_token,
+    hash_password,
+    validate_password_strength,
+    verify_password,
+)
 from app.db.database import get_db
 from app.db.models import User
 from app.schemas.auth import LoginRequest, TokenResponse
@@ -33,7 +38,7 @@ class RegisterRequest(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     password: str = Field(..., min_length=8, max_length=128)
 
-    @field_validator('password')
+    @field_validator("password")
     @classmethod
     def password_strength(cls, v):
         return validate_password_strength(v)
@@ -43,7 +48,7 @@ class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str = Field(..., min_length=8, max_length=128)
 
-    @field_validator('new_password')
+    @field_validator("new_password")
     @classmethod
     def password_strength(cls, v):
         return validate_password_strength(v)
@@ -61,10 +66,11 @@ class UserProfile(BaseModel):
 class PreferenceUpdate(BaseModel):
     preferred_exchange: str = Field(..., description="ALL, NSE, BSE, or NASDAQ")
 
-    @field_validator('preferred_exchange')
+    @field_validator("preferred_exchange")
     @classmethod
     def validate_exchange(cls, v):
         from app.core.exchanges import VALID_EXCHANGE_IDS
+
         if v.upper() not in VALID_EXCHANGE_IDS:
             raise ValueError(f"Exchange must be one of {VALID_EXCHANGE_IDS}")
         return v.upper()
@@ -96,7 +102,9 @@ async def login(req: LoginRequest, request: Request, db: AsyncSession = Depends(
 
 @router.post("/register", status_code=403)
 async def register():
-    raise HTTPException(status_code=403, detail="Self-registration is disabled. Contact an administrator.")
+    raise HTTPException(
+        status_code=403, detail="Self-registration is disabled. Contact an administrator."
+    )
 
 
 @router.get("/me", response_model=UserProfile)

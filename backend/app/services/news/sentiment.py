@@ -1,4 +1,3 @@
-import re
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 # Company name → ticker mappings for symbol extraction (all exchanges)
@@ -76,11 +75,25 @@ class SentimentAnalyzer:
         self._vader = SentimentIntensityAnalyzer()
         # Augment VADER with finance-specific lexicon
         finance_lexicon = {
-            "bullish": 2.0, "bearish": -2.0, "rally": 1.5, "plunge": -1.5,
-            "surge": 1.5, "crash": -2.0, "downgrade": -1.5, "upgrade": 1.5,
-            "beat": 1.0, "miss": -1.0, "profit": 1.2, "loss": -1.2,
-            "record high": 2.0, "record low": -2.0, "buyback": 1.0,
-            "dividend": 0.8, "default": -2.5, "fraud": -2.5, "scam": -2.5,
+            "bullish": 2.0,
+            "bearish": -2.0,
+            "rally": 1.5,
+            "plunge": -1.5,
+            "surge": 1.5,
+            "crash": -2.0,
+            "downgrade": -1.5,
+            "upgrade": 1.5,
+            "beat": 1.0,
+            "miss": -1.0,
+            "profit": 1.2,
+            "loss": -1.2,
+            "record high": 2.0,
+            "record low": -2.0,
+            "buyback": 1.0,
+            "dividend": 0.8,
+            "default": -2.5,
+            "fraud": -2.5,
+            "scam": -2.5,
         }
         self._vader.lexicon.update(finance_lexicon)
 

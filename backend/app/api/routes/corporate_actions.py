@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 _actions_cache: dict[str, tuple[float, list]] = {}
 _CACHE_TTL = 3600
 
+
 def _get_corporate_actions(symbol: str) -> list[dict]:
     now = time.monotonic()
     cached = _actions_cache.get(symbol)
@@ -29,26 +30,32 @@ def _get_corporate_actions(symbol: str) -> list[dict]:
         divs = ticker.dividends
         if divs is not None and len(divs) > 0:
             for idx, val in divs.tail(10).items():
-                results.append({
-                    "symbol": symbol,
-                    "type": "Dividend",
-                    "date": idx.strftime("%Y-%m-%d"),
-                    "details": f"₹{float(val):.2f} per share",
-                    "value": round(float(val), 2),
-                })
+                results.append(
+                    {
+                        "symbol": symbol,
+                        "type": "Dividend",
+                        "date": idx.strftime("%Y-%m-%d"),
+                        "details": f"₹{float(val):.2f} per share",
+                        "value": round(float(val), 2),
+                    }
+                )
 
         # Splits
         splits = ticker.splits
         if splits is not None and len(splits) > 0:
             for idx, val in splits.items():
                 ratio = float(val)
-                results.append({
-                    "symbol": symbol,
-                    "type": "Stock Split",
-                    "date": idx.strftime("%Y-%m-%d"),
-                    "details": f"{ratio:.0f}:1 split" if ratio > 1 else f"1:{1/ratio:.0f} reverse split",
-                    "value": ratio,
-                })
+                results.append(
+                    {
+                        "symbol": symbol,
+                        "type": "Stock Split",
+                        "date": idx.strftime("%Y-%m-%d"),
+                        "details": f"{ratio:.0f}:1 split"
+                        if ratio > 1
+                        else f"1:{1 / ratio:.0f} reverse split",
+                        "value": ratio,
+                    }
+                )
 
         # Capital gains distributions (bonus shares indicator)
         try:
@@ -57,13 +64,15 @@ def _get_corporate_actions(symbol: str) -> list[dict]:
                 for idx, row in actions.tail(10).iterrows():
                     if row.get("Stock Splits", 0) == 0 and row.get("Dividends", 0) == 0:
                         # Other action
-                        results.append({
-                            "symbol": symbol,
-                            "type": "Other Action",
-                            "date": idx.strftime("%Y-%m-%d"),
-                            "details": str(row.to_dict()),
-                            "value": None,
-                        })
+                        results.append(
+                            {
+                                "symbol": symbol,
+                                "type": "Other Action",
+                                "date": idx.strftime("%Y-%m-%d"),
+                                "details": str(row.to_dict()),
+                                "value": None,
+                            }
+                        )
         except Exception:
             pass
 
@@ -82,7 +91,7 @@ async def get_watchlist_corporate_actions(
 ):
     result = await db.execute(
         select(WatchedSymbol.symbol, WatchedSymbol.name).where(
-            WatchedSymbol.is_active == True,
+            WatchedSymbol.is_active.is_(True),
             WatchedSymbol.user_id == current_user.id,
         )
     )
@@ -92,6 +101,7 @@ async def get_watchlist_corporate_actions(
 
     loop = asyncio.get_event_loop()
     sem = asyncio.Semaphore(10)
+
     async def fetch(sym):
         async with sem:
             return await loop.run_in_executor(None, _get_corporate_actions, sym[0])

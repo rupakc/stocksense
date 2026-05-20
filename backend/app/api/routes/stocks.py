@@ -5,7 +5,6 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
-from app.core.config import settings
 from app.db.database import get_db
 from app.db.models import User
 import yfinance as yf
@@ -25,9 +24,10 @@ async def get_watchlist(
     """Return all tracked symbols for the current user."""
     from sqlalchemy import select
     from app.db.models import WatchedSymbol
+
     result = await db.execute(
         select(WatchedSymbol).where(
-            WatchedSymbol.is_active == True,  # noqa: E712
+            WatchedSymbol.is_active.is_(True),  # noqa: E712
             WatchedSymbol.user_id == current_user.id,
         )
     )
@@ -46,12 +46,11 @@ async def add_to_watchlist(
     from app.db.models import WatchedSymbol
 
     from app.core.exchanges import get_suffix
+
     suffix = get_suffix(req.exchange)
     full_symbol = f"{req.symbol.upper()}{suffix}"
 
-    existing = await db.execute(
-        select(WatchedSymbol).where(WatchedSymbol.symbol == full_symbol)
-    )
+    existing = await db.execute(select(WatchedSymbol).where(WatchedSymbol.symbol == full_symbol))
     row = existing.scalar_one_or_none()
     if row:
         if not row.is_active:
@@ -63,7 +62,9 @@ async def add_to_watchlist(
 
     info = fetcher.get_stock_info(full_symbol)
     if not info:
-        raise HTTPException(status_code=404, detail=f"Symbol {full_symbol} not found on Yahoo Finance")
+        raise HTTPException(
+            status_code=404, detail=f"Symbol {full_symbol} not found on Yahoo Finance"
+        )
 
     watched = WatchedSymbol(
         symbol=full_symbol,
@@ -79,6 +80,7 @@ async def add_to_watchlist(
     await fetcher.fetch_and_store(full_symbol, period="2y", db=db, force=True)
 
     from app.api.routes.predictions import _train_symbol
+
     background_tasks.add_task(_train_symbol, full_symbol, 30)
 
     return watched
@@ -92,6 +94,7 @@ async def remove_from_watchlist(
 ):
     from sqlalchemy import select
     from app.db.models import WatchedSymbol
+
     result = await db.execute(
         select(WatchedSymbol).where(
             WatchedSymbol.symbol == symbol,
@@ -109,6 +112,7 @@ async def remove_from_watchlist(
 async def get_quote(symbol: str):
     """Get real-time (15-min delayed) quote for a symbol."""
     import asyncio
+
     quote = await asyncio.to_thread(fetcher.get_live_quote, symbol)
     if not quote:
         raise HTTPException(status_code=404, detail=f"Could not fetch quote for {symbol}")
@@ -148,10 +152,9 @@ async def get_history(
     await fetcher.fetch_and_store(symbol, period=period, db=db)
     from sqlalchemy import select
     from app.db.models import StockPrice
+
     result = await db.execute(
-        select(StockPrice)
-        .where(StockPrice.symbol == symbol)
-        .order_by(StockPrice.timestamp_utc)
+        select(StockPrice).where(StockPrice.symbol == symbol).order_by(StockPrice.timestamp_utc)
     )
     return result.scalars().all()
 
@@ -163,6 +166,7 @@ async def search_symbols(
 ):
     """Search equity symbols by ticker or company name."""
     from app.services.market_data.symbol_search import search_symbols
+
     return search_symbols(q, exchange=exchange.upper())
 
 
@@ -196,7 +200,7 @@ async def get_earnings(
 
     result = await db.execute(
         select(WatchedSymbol.symbol).where(
-            WatchedSymbol.is_active == True,
+            WatchedSymbol.is_active.is_(True),
             WatchedSymbol.user_id == current_user.id,
         )
     )
@@ -229,7 +233,7 @@ async def get_dividends(
 
     result = await db.execute(
         select(WatchedSymbol.symbol).where(
-            WatchedSymbol.is_active == True,
+            WatchedSymbol.is_active.is_(True),
             WatchedSymbol.user_id == current_user.id,
         )
     )
@@ -276,6 +280,7 @@ def _get_dividend_info(symbol: str) -> dict | None:
         if result["ex_date"]:
             try:
                 from datetime import datetime
+
                 result["ex_date"] = datetime.fromtimestamp(result["ex_date"]).strftime("%Y-%m-%d")
             except Exception:
                 result["ex_date"] = str(result["ex_date"])
@@ -290,6 +295,7 @@ def _get_dividend_info(symbol: str) -> dict | None:
 async def get_options_chain(symbol: str):
     """Return options chain data for a symbol."""
     import asyncio
+
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(None, _fetch_options, symbol)
     if not result:
@@ -316,24 +322,32 @@ def _norm_pdf(x):
     return math.exp(-0.5 * x * x) / math.sqrt(2 * math.pi)
 
 
-def _black_scholes_greeks(S, K, T, r, sigma, option_type='call'):
+def _black_scholes_greeks(S, K, T, r, sigma, option_type="call"):
     """Calculate option Greeks using Black-Scholes model (no scipy dependency)."""
     if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
         return {}
     d1 = (math.log(S / K) + (r + sigma**2 / 2) * T) / (sigma * math.sqrt(T))
     d2 = d1 - sigma * math.sqrt(T)
 
-    if option_type == 'call':
+    if option_type == "call":
         delta = round(_norm_cdf(d1), 4)
         theta = round(
-            (-S * _norm_pdf(d1) * sigma / (2 * math.sqrt(T))
-             - r * K * math.exp(-r * T) * _norm_cdf(d2)) / 365, 4
+            (
+                -S * _norm_pdf(d1) * sigma / (2 * math.sqrt(T))
+                - r * K * math.exp(-r * T) * _norm_cdf(d2)
+            )
+            / 365,
+            4,
         )
     else:
         delta = round(_norm_cdf(d1) - 1, 4)
         theta = round(
-            (-S * _norm_pdf(d1) * sigma / (2 * math.sqrt(T))
-             + r * K * math.exp(-r * T) * _norm_cdf(-d2)) / 365, 4
+            (
+                -S * _norm_pdf(d1) * sigma / (2 * math.sqrt(T))
+                + r * K * math.exp(-r * T) * _norm_cdf(-d2)
+            )
+            / 365,
+            4,
         )
 
     gamma = round(_norm_pdf(d1) / (S * sigma * math.sqrt(T)), 6)
@@ -345,6 +359,7 @@ def _black_scholes_greeks(S, K, T, r, sigma, option_type='call'):
 def _fetch_options(symbol: str) -> dict | None:
     import logging
     from datetime import datetime
+
     try:
         ticker = yf.Ticker(symbol)
         expirations = ticker.options
@@ -373,32 +388,36 @@ def _fetch_options(symbol: str) -> dict | None:
                 iv = row.get("impliedVolatility", 0)
                 # Add Greeks
                 if current_price > 0 and strike > 0 and iv > 0:
-                    greeks = _black_scholes_greeks(current_price, strike, T, risk_free_rate, iv, option_type)
+                    greeks = _black_scholes_greeks(
+                        current_price, strike, T, risk_free_rate, iv, option_type
+                    )
                     entry.update(greeks)
                 else:
                     entry.update({"delta": None, "gamma": None, "theta": None, "vega": None})
                 # ITM flag
-                if option_type == 'call':
+                if option_type == "call":
                     entry["itm"] = current_price > strike if current_price > 0 else None
                 else:
                     entry["itm"] = current_price < strike if current_price > 0 else None
                 return entry
 
-            calls = [_enrich_row(row, 'call') for _, row in opt.calls[cols].head(20).iterrows()]
-            puts = [_enrich_row(row, 'put') for _, row in opt.puts[cols].head(20).iterrows()]
+            calls = [_enrich_row(row, "call") for _, row in opt.calls[cols].head(20).iterrows()]
+            puts = [_enrich_row(row, "put") for _, row in opt.puts[cols].head(20).iterrows()]
 
             total_call_oi = int(opt.calls["openInterest"].sum())
             total_put_oi = int(opt.puts["openInterest"].sum())
             pcr = round(total_put_oi / total_call_oi, 3) if total_call_oi > 0 else None
 
-            all_chains.append({
-                "expiration": exp,
-                "calls": calls,
-                "puts": puts,
-                "total_call_oi": total_call_oi,
-                "total_put_oi": total_put_oi,
-                "put_call_ratio": pcr,
-            })
+            all_chains.append(
+                {
+                    "expiration": exp,
+                    "calls": calls,
+                    "puts": puts,
+                    "total_call_oi": total_call_oi,
+                    "total_put_oi": total_put_oi,
+                    "put_call_ratio": pcr,
+                }
+            )
 
         first = all_chains[0] if all_chains else {}
         return {
@@ -430,7 +449,7 @@ async def get_momentum_data(
 
     result = await db.execute(
         select(WatchedSymbol.symbol, WatchedSymbol.name).where(
-            WatchedSymbol.is_active == True,
+            WatchedSymbol.is_active.is_(True),
             WatchedSymbol.user_id == current_user.id,
         )
     )
@@ -479,7 +498,11 @@ def _get_momentum(symbol: str, name: str | None) -> dict | None:
 
         import math
 
-        closes = [c for c in hist["Close"].tolist() if c is not None and not math.isnan(c) and not math.isinf(c)]
+        closes = [
+            c
+            for c in hist["Close"].tolist()
+            if c is not None and not math.isnan(c) and not math.isinf(c)
+        ]
         if len(closes) < 20:
             return None
         current = closes[-1]
@@ -554,6 +577,7 @@ def _get_momentum(symbol: str, name: str | None) -> dict | None:
 
 def _get_earnings_info(symbol: str) -> dict | None:
     import logging
+
     try:
         ticker = yf.Ticker(symbol)
         cal = ticker.calendar
@@ -588,11 +612,13 @@ def _get_earnings_info(symbol: str) -> dict | None:
         # Fetch earnings history (surprise data)
         try:
             earnings_hist = ticker.earnings_dates
-            if earnings_hist is not None and hasattr(earnings_hist, 'iterrows'):
+            if earnings_hist is not None and hasattr(earnings_hist, "iterrows"):
                 history = []
                 for idx, row in earnings_hist.head(8).iterrows():
                     entry = {
-                        "date": idx.strftime("%Y-%m-%d") if hasattr(idx, 'strftime') else str(idx)[:10],
+                        "date": idx.strftime("%Y-%m-%d")
+                        if hasattr(idx, "strftime")
+                        else str(idx)[:10],
                         "eps_estimate": _safe_float(row.get("EPS Estimate")),
                         "eps_actual": _safe_float(row.get("Reported EPS")),
                         "surprise_pct": _safe_float(row.get("Surprise(%)")),

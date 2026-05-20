@@ -40,9 +40,8 @@ logger = logging.getLogger(__name__)
 
 
 class PredictionService:
-
     def _model_path(self, symbol: str) -> str:
-        safe = re.sub(r'[^A-Za-z0-9_\-]', '_', symbol)
+        safe = re.sub(r"[^A-Za-z0-9_\-]", "_", symbol)
         model_dir = os.path.abspath(settings.model_dir)
         os.makedirs(model_dir, exist_ok=True)
         path = os.path.join(model_dir, f"{safe}_prophet.joblib")
@@ -70,10 +69,7 @@ class PredictionService:
             )
 
         feature_cols = builder._feature_columns(df)
-        logger.info(
-            f"Training Prophet for {symbol}: {len(df)} rows, "
-            f"{len(feature_cols)} features"
-        )
+        logger.info(f"Training Prophet for {symbol}: {len(df)} rows, {len(feature_cols)} features")
 
         model, prophet_predictions, prophet_metrics = await asyncio.to_thread(
             self._train_prophet, df, feature_cols, builder, horizon_days
@@ -90,8 +86,10 @@ class PredictionService:
                 self._train_gbm, df, feature_cols, horizon_days, builder
             )
             final_predictions, saved_blend_info = self._blend_predictions(
-                prophet_predictions, gbm_preds,
-                prophet_metrics["mape"], gbm_metrics["mape"],
+                prophet_predictions,
+                gbm_preds,
+                prophet_metrics["mape"],
+                gbm_metrics["mape"],
             )
             final_metrics = {
                 **prophet_metrics,
@@ -130,9 +128,11 @@ class PredictionService:
 
         # Persist to GCS immediately so the model survives a container restart
         from app.services.gcs_sync import get_gcs_sync
+
         await asyncio.to_thread(get_gcs_sync().upload_model, model_path)
 
         from app.db.models import PredictionResult
+
         record = PredictionResult(
             symbol=symbol,
             model_name=model_name,
@@ -170,8 +170,7 @@ class PredictionService:
 
         if len(df) < 60:
             raise ValueError(
-                f"Insufficient training data for {symbol}: "
-                f"{len(df)} rows, 60 minimum required"
+                f"Insufficient training data for {symbol}: {len(df)} rows, 60 minimum required"
             )
 
         feature_cols = builder._feature_columns(df)
@@ -183,9 +182,7 @@ class PredictionService:
 
         # Pair future prices with business dates
         last_date = df["ds"].max()
-        future_dates = pd.bdate_range(
-            start=last_date + timedelta(days=1), periods=horizon_days
-        )
+        future_dates = pd.bdate_range(start=last_date + timedelta(days=1), periods=horizon_days)
         residual_band = metrics.get("rmse", metrics.get("mae", 10) * 1.5)
         predictions = [
             {
@@ -200,7 +197,7 @@ class PredictionService:
         await asyncio.to_thread(
             joblib.dump,
             {
-                "model": None,          # no Prophet in fast mode
+                "model": None,  # no Prophet in fast mode
                 "gbm_model": gbm_model,
                 "blend_info": None,
                 "builder": builder,
@@ -211,9 +208,11 @@ class PredictionService:
         )
 
         from app.services.gcs_sync import get_gcs_sync
+
         await asyncio.to_thread(get_gcs_sync().upload_model, model_path)
 
         from app.db.models import PredictionResult
+
         record = PredictionResult(
             symbol=symbol,
             model_name="gbm-fast",
@@ -235,9 +234,7 @@ class PredictionService:
     # Inference
     # ------------------------------------------------------------------
 
-    async def get_latest(
-        self, symbol: str, horizon_days: int, db: AsyncSession
-    ) -> dict | None:
+    async def get_latest(self, symbol: str, horizon_days: int, db: AsyncSession) -> dict | None:
         """Return the latest stored prediction, falling back to on-disk model."""
         from sqlalchemy import select
         from app.db.models import PredictionResult
@@ -255,6 +252,7 @@ class PredictionService:
         if row:
             d = self._row_to_dict(row)
             from app.db.models import StockPrice
+
             price_result = await db.execute(
                 select(StockPrice.close)
                 .where(StockPrice.symbol == symbol)
@@ -285,6 +283,7 @@ class PredictionService:
 
         try:
             from datetime import timedelta
+
             saved = await asyncio.to_thread(joblib.load, model_path)
             model = saved["model"]
             builder = saved["builder"]
@@ -336,9 +335,7 @@ class PredictionService:
                     "horizon_days": horizon_days,
                     "predictions": predictions,
                     "metrics": saved.get("metrics", {}),
-                    "confidence": self._confidence(
-                        (saved.get("metrics") or {}).get("mape", 99)
-                    ),
+                    "confidence": self._confidence((saved.get("metrics") or {}).get("mape", 99)),
                     "features_used": feature_cols,
                     "current_price": current_price,
                 }
@@ -399,9 +396,7 @@ class PredictionService:
             return {
                 "symbol": symbol,
                 "model_name": model_label,
-                "trained_at": datetime.fromtimestamp(
-                    os.path.getmtime(model_path), tz=timezone.utc
-                ),
+                "trained_at": datetime.fromtimestamp(os.path.getmtime(model_path), tz=timezone.utc),
                 "horizon_days": horizon_days,
                 "predictions": predictions,
                 "metrics": metrics,
@@ -419,6 +414,7 @@ class PredictionService:
 
     def _make_prophet_model(self, feature_cols: list[str], uncertainty_samples: int = 100):
         from prophet import Prophet
+
         model = Prophet(
             daily_seasonality=False,
             weekly_seasonality=True,
@@ -431,13 +427,27 @@ class PredictionService:
         model.add_seasonality(name="quarterly", period=91.25, fourier_order=5)
         for col in feature_cols:
             if col.startswith("sentiment") or col.startswith("news_"):
-                prior = 0.3   # news sentiment — allow more influence
-            elif col in ("candle_body", "gap", "vwap_ratio", "lower_shadow",
-                         "ema_cross_9_21", "ichimoku_base_pct"):
-                prior = 0.2   # high-signal candlestick patterns
-            elif col in ("rsi_14", "macd_diff", "bb_position", "mfi_14",
-                         "stoch_k", "williams_r", "cci_20",
-                         "adx_14", "roc_10"):
+                prior = 0.3  # news sentiment — allow more influence
+            elif col in (
+                "candle_body",
+                "gap",
+                "vwap_ratio",
+                "lower_shadow",
+                "ema_cross_9_21",
+                "ichimoku_base_pct",
+            ):
+                prior = 0.2  # high-signal candlestick patterns
+            elif col in (
+                "rsi_14",
+                "macd_diff",
+                "bb_position",
+                "mfi_14",
+                "stoch_k",
+                "williams_r",
+                "cci_20",
+                "adx_14",
+                "roc_10",
+            ):
                 prior = 0.15  # oscillator signals
             else:
                 prior = 0.08  # macro, volatility, volume — slow-moving background
@@ -457,23 +467,20 @@ class PredictionService:
 
         split = int(len(train_df) * 0.80)
         train_part = train_df.iloc[:split]
-        test_part  = train_df.iloc[split:]
+        test_part = train_df.iloc[split:]
 
         # --- Walk-forward validation model (no uncertainty intervals needed) ---
         eval_model = self._make_prophet_model(feature_cols, uncertainty_samples=0)
         eval_model.fit(train_part)
         test_forecast = eval_model.predict(test_part[["ds"] + feature_cols])
-        merged = test_part[["ds", "y"]].merge(
-            test_forecast[["ds", "yhat"]], on="ds"
-        ).dropna()
-        mae  = float((merged["y"] - merged["yhat"]).abs().mean())
+        merged = test_part[["ds", "y"]].merge(test_forecast[["ds", "yhat"]], on="ds").dropna()
+        mae = float((merged["y"] - merged["yhat"]).abs().mean())
         mape = float(
-            ((merged["y"] - merged["yhat"]).abs()
-             / merged["y"].abs().clip(lower=1e-8)).mean() * 100
+            ((merged["y"] - merged["yhat"]).abs() / merged["y"].abs().clip(lower=1e-8)).mean() * 100
         )
         rmse = float(((merged["y"] - merged["yhat"]) ** 2).mean() ** 0.5)
         metrics = {
-            "mae":  round(mae,  4),
+            "mae": round(mae, 4),
             "mape": round(mape, 4),
             "rmse": round(rmse, 4),
             "eval_rows": len(merged),
@@ -489,10 +496,10 @@ class PredictionService:
         tail = forecast.tail(horizon_days)
         predictions = [
             {
-                "date":            row["ds"].strftime("%Y-%m-%d"),
-                "predicted_close": round(row["yhat"],       2),
-                "lower_bound":     round(row["yhat_lower"], 2),
-                "upper_bound":     round(row["yhat_upper"], 2),
+                "date": row["ds"].strftime("%Y-%m-%d"),
+                "predicted_close": round(row["yhat"], 2),
+                "lower_bound": round(row["yhat_lower"], 2),
+                "upper_bound": round(row["yhat_upper"], 2),
             }
             for _, row in tail.iterrows()
         ]
@@ -521,19 +528,25 @@ class PredictionService:
         y_train, y_test = y[:split], y[split:]
 
         gbm = GradientBoostingRegressor(
-            n_estimators=200, max_depth=4, learning_rate=0.05,
-            subsample=0.8, min_samples_leaf=10, random_state=42,
+            n_estimators=200,
+            max_depth=4,
+            learning_rate=0.05,
+            subsample=0.8,
+            min_samples_leaf=10,
+            random_state=42,
         )
         gbm.fit(X_train, y_train)
         preds = gbm.predict(X_test)
         mae = mean_absolute_error(y_test, preds)
-        mape = float(
-            (np.abs(y_test - preds) / np.clip(np.abs(y_test), 1e-8, None)).mean() * 100
-        )
+        mape = float((np.abs(y_test - preds) / np.clip(np.abs(y_test), 1e-8, None)).mean() * 100)
 
         gbm_full = GradientBoostingRegressor(
-            n_estimators=200, max_depth=4, learning_rate=0.05,
-            subsample=0.8, min_samples_leaf=10, random_state=42,
+            n_estimators=200,
+            max_depth=4,
+            learning_rate=0.05,
+            subsample=0.8,
+            min_samples_leaf=10,
+            random_state=42,
         )
         gbm_full.fit(X, y)
 
@@ -545,11 +558,15 @@ class PredictionService:
         )
 
         rmse = float(np.sqrt(np.mean((y_test - preds) ** 2)))
-        return gbm_full, gbm_preds, {
-            "mae": round(mae, 4),
-            "mape": round(mape, 4),
-            "rmse": round(rmse, 4),
-        }
+        return (
+            gbm_full,
+            gbm_preds,
+            {
+                "mae": round(mae, 4),
+                "mape": round(mape, 4),
+                "rmse": round(rmse, 4),
+            },
+        )
 
     def _blend_predictions(self, prophet_preds, gbm_preds, prophet_mape, gbm_mape):
         total = prophet_mape + gbm_mape
@@ -566,14 +583,16 @@ class PredictionService:
         for i, pp in enumerate(prophet_preds):
             gb_val = gbm_preds[i] if i < len(gbm_preds) else pp["predicted_close"]
             blended_close = pp["predicted_close"] * w_prophet + gb_val * w_gbm
-            blended.append({
-                "date": pp["date"],
-                "predicted_close": round(blended_close, 2),
-                "lower_bound": pp["lower_bound"],
-                "upper_bound": pp["upper_bound"],
-                "prophet_pred": pp["predicted_close"],
-                "gbm_pred": round(gb_val, 2),
-            })
+            blended.append(
+                {
+                    "date": pp["date"],
+                    "predicted_close": round(blended_close, 2),
+                    "lower_bound": pp["lower_bound"],
+                    "upper_bound": pp["upper_bound"],
+                    "prophet_pred": pp["predicted_close"],
+                    "gbm_pred": round(gb_val, 2),
+                }
+            )
         return blended, {"prophet_weight": round(w_prophet, 3), "gbm_weight": round(w_gbm, 3)}
 
     # ------------------------------------------------------------------
@@ -589,15 +608,13 @@ class PredictionService:
 
     def _row_to_dict(self, row) -> dict:
         return {
-            "symbol":        row.symbol,
-            "model_name":    row.model_name,
-            "trained_at":    row.trained_at,
-            "horizon_days":  row.horizon_days,
-            "predictions":   row.predictions,
-            "metrics":       row.metrics,
-            "confidence":    self._confidence(
-                row.metrics.get("mape", 99) if row.metrics else 99
-            ),
+            "symbol": row.symbol,
+            "model_name": row.model_name,
+            "trained_at": row.trained_at,
+            "horizon_days": row.horizon_days,
+            "predictions": row.predictions,
+            "metrics": row.metrics,
+            "confidence": self._confidence(row.metrics.get("mape", 99) if row.metrics else 99),
             "features_used": row.features_used,
             "current_price": None,  # populated by get_latest() via live DB query
         }

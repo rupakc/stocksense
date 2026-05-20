@@ -48,7 +48,7 @@ class AddSymbolRequest(BaseModel):
     symbol: str = Field(..., description="Ticker e.g. RELIANCE for NSE, AAPL for NASDAQ")
     exchange: str = Field(default="NSE", description="NSE, BSE, or NASDAQ")
 
-    @field_validator('exchange')
+    @field_validator("exchange")
     @classmethod
     def validate_exchange(cls, v):
         allowed = {"NSE", "BSE", "NASDAQ"}
@@ -56,11 +56,11 @@ class AddSymbolRequest(BaseModel):
             raise ValueError(f"Exchange must be one of {allowed}")
         return v.upper()
 
-    @field_validator('symbol')
+    @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v):
-        if not re.match(r'^[A-Z0-9&\.\-]{1,20}$', v.upper()):
-            raise ValueError('Invalid symbol format')
+        if not re.match(r"^[A-Z0-9&\.\-]{1,20}$", v.upper()):
+            raise ValueError("Invalid symbol format")
         return v.upper()
 
 

@@ -17,7 +17,7 @@ _CACHE_TTL = 900  # 15 min
 def _safe(val, decimals=2):
     try:
         f = float(val)
-        if f != f or f == float('inf') or f == float('-inf'):
+        if f != f or f == float("inf") or f == float("-inf"):
             return None
         return round(f, decimals)
     except (ValueError, TypeError):
@@ -30,11 +30,11 @@ def _resolve_yf_symbol(symbol: str) -> list[str]:
     Bare symbols (no dot, no leading ^) are assumed to be NSE first.
     NASDAQ symbols are tried as bare if .NS lookup fails.
     """
-    if '.' in symbol or symbol.startswith('^'):
+    if "." in symbol or symbol.startswith("^"):
         return [symbol]
     # NSE first (most users on this platform are trading Indian equities),
     # then BSE, then bare (NASDAQ / US stocks)
-    return [symbol + '.NS', symbol + '.BO', symbol]
+    return [symbol + ".NS", symbol + ".BO", symbol]
 
 
 def _get_comparison_data(symbol: str) -> dict | None:
@@ -73,11 +73,13 @@ def _get_comparison_data(symbol: str) -> dict | None:
                 if close is None:
                     continue
                 pct = _safe((close - first_close) / first_close * 100) if first_close else 0
-                price_history.append({
-                    "date": idx.strftime("%Y-%m-%d"),
-                    "price": close,
-                    "pct_change": pct or 0,
-                })
+                price_history.append(
+                    {
+                        "date": idx.strftime("%Y-%m-%d"),
+                        "price": close,
+                        "pct_change": pct or 0,
+                    }
+                )
 
         result = {
             "symbol": symbol,
@@ -146,7 +148,15 @@ async def compare_stocks(
         raise HTTPException(status_code=404, detail="Could not fetch data for enough symbols")
 
     # Calculate relative scores for each metric
-    metrics = ["pe_ratio", "pb_ratio", "roe", "profit_margin", "debt_to_equity", "dividend_yield", "revenue_growth"]
+    metrics = [
+        "pe_ratio",
+        "pb_ratio",
+        "roe",
+        "profit_margin",
+        "debt_to_equity",
+        "dividend_yield",
+        "revenue_growth",
+    ]
     rankings = {}
     for metric in metrics:
         values = [(s["symbol"], s.get(metric)) for s in stocks if s.get(metric) is not None]

@@ -64,6 +64,7 @@ class NSEFetcher:
 
     def fetch_history(self, symbol: str, period: str = "1y") -> pd.DataFrame:
         import time
+
         last_exc: Exception | None = None
         for attempt in range(3):
             try:
@@ -73,22 +74,34 @@ class NSEFetcher:
                     return pd.DataFrame()
                 df.index = df.index.tz_convert("UTC")
                 df.reset_index(inplace=True)
-                df.rename(columns={
-                    "Date": "timestamp_utc", "Open": "open", "High": "high",
-                    "Low": "low", "Close": "close", "Volume": "volume",
-                }, inplace=True)
+                df.rename(
+                    columns={
+                        "Date": "timestamp_utc",
+                        "Open": "open",
+                        "High": "high",
+                        "Low": "low",
+                        "Close": "close",
+                        "Volume": "volume",
+                    },
+                    inplace=True,
+                )
                 df["symbol"] = symbol
                 df = df[["symbol", "timestamp_utc", "open", "high", "low", "close", "volume"]]
                 return df.dropna(subset=["open", "high", "low", "close"])
             except Exception as exc:
                 last_exc = exc
                 if attempt < 2:
-                    time.sleep(2 ** attempt)
+                    time.sleep(2**attempt)
         logger.error(f"Error fetching history for {symbol} after 3 attempts: {last_exc}")
         return pd.DataFrame()
 
     async def fetch_and_store(
-        self, symbol: str, period: str = "1y", db: AsyncSession = None, *, force: bool = False,
+        self,
+        symbol: str,
+        period: str = "1y",
+        db: AsyncSession = None,
+        *,
+        force: bool = False,
     ):
         if db is None:
             return
@@ -97,12 +110,15 @@ class NSEFetcher:
             from sqlalchemy import select, func
             from app.db.models import StockPrice
             from app.core.config import settings as cfg
+
             row = await db.execute(
                 select(func.max(StockPrice.timestamp_utc)).where(StockPrice.symbol == symbol)
             )
             latest = row.scalar()
             if latest:
-                age = (datetime.now(timezone.utc) - latest.replace(tzinfo=timezone.utc)).total_seconds()
+                age = (
+                    datetime.now(timezone.utc) - latest.replace(tzinfo=timezone.utc)
+                ).total_seconds()
                 if age < cfg.history_freshness_ttl:
                     return
 

@@ -21,12 +21,12 @@ class CreateUserRequest(BaseModel):
     email: str | None = None
     is_admin: bool = False
 
-    @field_validator('password')
+    @field_validator("password")
     @classmethod
     def password_strength(cls, v):
         return validate_password_strength(v)
 
-    @field_validator('email', mode='before')
+    @field_validator("email", mode="before")
     @classmethod
     def normalize_email(cls, v):
         if isinstance(v, str):
@@ -38,7 +38,7 @@ class CreateUserRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     new_password: str
 
-    @field_validator('new_password')
+    @field_validator("new_password")
     @classmethod
     def password_strength(cls, v):
         return validate_password_strength(v)
@@ -175,23 +175,29 @@ async def training_status(
         ).scalar() or 0
 
         pred_row = (
-            await db.execute(
-                select(PredictionResult)
-                .where(PredictionResult.symbol == sym)
-                .order_by(PredictionResult.trained_at.desc())
-                .limit(1)
+            (
+                await db.execute(
+                    select(PredictionResult)
+                    .where(PredictionResult.symbol == sym)
+                    .order_by(PredictionResult.trained_at.desc())
+                    .limit(1)
+                )
             )
-        ).scalars().first()
+            .scalars()
+            .first()
+        )
 
-        per_symbol.append({
-            "symbol": sym,
-            "price_rows_in_db": price_count,
-            "is_training_now": sym in _training_symbols,
-            "last_trained_at": pred_row.trained_at.isoformat() if pred_row else None,
-            "model_name": pred_row.model_name if pred_row else None,
-            "mape": (pred_row.metrics or {}).get("mape") if pred_row else None,
-            "has_prediction": pred_row is not None,
-        })
+        per_symbol.append(
+            {
+                "symbol": sym,
+                "price_rows_in_db": price_count,
+                "is_training_now": sym in _training_symbols,
+                "last_trained_at": pred_row.trained_at.isoformat() if pred_row else None,
+                "model_name": pred_row.model_name if pred_row else None,
+                "mape": (pred_row.metrics or {}).get("mape") if pred_row else None,
+                "has_prediction": pred_row is not None,
+            }
+        )
 
     return {
         "currently_training": list(_training_symbols),

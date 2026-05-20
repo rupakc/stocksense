@@ -18,13 +18,13 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
 
     # Cache TTL (seconds)
-    quote_cache_ttl: int = 900        # 15 minutes
-    news_cache_ttl: int = 900         # 15 minutes
-    economic_cache_ttl: int = 86400   # 24 hours
+    quote_cache_ttl: int = 900  # 15 minutes
+    news_cache_ttl: int = 900  # 15 minutes
+    economic_cache_ttl: int = 86400  # 24 hours
     prediction_cache_ttl: int = 3600  # 1 hour
     prediction_max_age_hours: int = 24
     history_freshness_ttl: int = 900  # 15 minutes — skip re-fetch if data is newer
-    insider_cache_ttl: int = 86400    # 24 hours — insider data changes rarely
+    insider_cache_ttl: int = 86400  # 24 hours — insider data changes rarely
 
     # Market hours (IST = UTC+5:30)
     market_open_hour_ist: int = 9
@@ -63,6 +63,7 @@ class Settings(BaseSettings):
         callers can check truthiness before attempting file-level operations.
         """
         import re
+
         if "sqlite" not in self.database_url:
             return ""
         m = re.search(r"sqlite[^:]*:///(.+)", self.database_url)
@@ -72,9 +73,16 @@ class Settings(BaseSettings):
 
     # Default watchlist
     default_symbols: list[str] = [
-        "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS",
-        "ICICIBANK.NS", "HINDUNILVR.NS", "ITC.NS", "SBIN.NS",
-        "BHARTIARTL.NS", "KOTAKBANK.NS",
+        "RELIANCE.NS",
+        "TCS.NS",
+        "INFY.NS",
+        "HDFCBANK.NS",
+        "ICICIBANK.NS",
+        "HINDUNILVR.NS",
+        "ITC.NS",
+        "SBIN.NS",
+        "BHARTIARTL.NS",
+        "KOTAKBANK.NS",
     ]
 
     # Market indices (Indian + US)
