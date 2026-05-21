@@ -48,6 +48,13 @@ body {
 
 button, a { transition: color 0.15s, background-color 0.15s, border-color 0.15s, opacity 0.15s; }
 
+/* ── Mobile responsiveness globals ─────────────────────────────────────────── */
+/* Prevent iOS Safari auto-zoom when focusing form inputs (triggers at < 16px) */
+input, select, textarea { font-size: max(16px, 1em); }
+
+/* Enforce minimum 44px touch targets on interactive elements */
+button, [role="button"] { min-height: 44px; }
+
 /* ── Dark mode overrides ────────────────────────────────────────────────────── */
 .dark body {
   background-color: #0f172a;

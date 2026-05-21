@@ -150,7 +150,7 @@ export default function EconomicIndicators() {
   return (
     <div className="max-w-5xl mx-auto space-y-10">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Economic Indicators</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Economic Indicators</h1>
         <p className="text-sm text-slate-500 mt-1">
           Live market data · World Bank macro indicators · Refreshes every 5 min
         </p>

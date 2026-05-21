@@ -30,7 +30,7 @@ function WatchlistRow({ s, onRemove }) {
   const cur = currencySymbol(s.symbol)
 
   return (
-    <div className="flex items-center justify-between px-5 py-3.5 hover:bg-slate-50 transition-colors group">
+    <div className="flex items-center justify-between px-3 sm:px-5 py-3.5 hover:bg-slate-50 transition-colors group">
       <div className="flex items-center gap-3 min-w-0">
         <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isUp ? 'bg-emerald-50' : 'bg-rose-50'}`}>
           {isUp
@@ -48,7 +48,7 @@ function WatchlistRow({ s, onRemove }) {
             </Link>
             {exchangeBadge(s)}
           </div>
-          <p className="text-xs text-slate-400 truncate max-w-[200px]">{s.name ?? s.sector ?? ''}</p>
+          <p className="text-xs text-slate-400 truncate max-w-[130px] sm:max-w-[200px]">{s.name ?? s.sector ?? ''}</p>
         </div>
       </div>
 
@@ -134,7 +134,7 @@ export default function Watchlist() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Watchlist</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Watchlist</h1>
           <p className="text-sm text-slate-500 mt-1">Search and track NSE & NASDAQ stocks with live quotes</p>
         </div>
         {filtered.length > 0 && (

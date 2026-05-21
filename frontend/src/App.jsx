@@ -84,7 +84,7 @@ function MoreDropdown() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-[calc(100%+8px)] w-56 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50">
+        <div className="absolute right-0 top-[calc(100%+8px)] w-56 max-w-[calc(100vw-2rem)] bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50">
           {moreNavGroups.map((group) => (
             <div key={group.heading}>
               <p className="px-4 pt-3 pb-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
@@ -196,7 +196,7 @@ function Nav() {
           <ExchangeDropdown />
         </div>
 
-        <div className="hidden lg:flex items-center gap-0.5">
+        <div className="hidden md:flex items-center gap-0.5">
           {primaryNav.map(({ to, label, icon: Icon }) => (
             <NavLink key={to} to={to} end={to === '/'} className={linkClass}>
               <Icon className="w-4 h-4" />
@@ -238,7 +238,7 @@ function Nav() {
           </NavLink>
 
           <button
-            className="lg:hidden p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100"
+            className="md:hidden p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100"
             onClick={() => setMobileOpen(o => !o)}
             aria-label="Toggle menu"
           >
@@ -248,7 +248,7 @@ function Nav() {
       </div>
 
       {mobileOpen && (
-        <div className="lg:hidden border-t border-slate-200 bg-white px-4 py-3 max-h-[70vh] overflow-y-auto">
+        <div className="md:hidden border-t border-slate-200 bg-white px-4 py-3 max-h-[70vh] overflow-y-auto">
           <div className="flex flex-col gap-0.5">
             {primaryNav.map(({ to, label, icon: Icon }) => (
               <NavLink key={to} to={to} end={to === '/'} className={linkClass} onClick={() => setMobileOpen(false)}>

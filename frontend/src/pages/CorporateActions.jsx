@@ -146,7 +146,7 @@ export default function CorporateActions() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Corporate Actions</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100">Corporate Actions</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Dividends, stock splits, and other corporate events for your watchlist</p>
       </div>
 

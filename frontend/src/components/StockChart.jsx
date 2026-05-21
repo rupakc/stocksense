@@ -3,6 +3,7 @@ import {
   Tooltip, ResponsiveContainer, ReferenceLine, Legend,
 } from 'recharts'
 import { format } from 'date-fns'
+import { useWindowWidth } from '../hooks/useWindowWidth'
 
 function CustomTooltip({ active, payload, label, currency = '₹' }) {
   if (!active || !payload?.length) return null
@@ -19,6 +20,10 @@ function CustomTooltip({ active, payload, label, currency = '₹' }) {
 }
 
 export default function StockChart({ history = [], predictions = [], currency = '₹' }) {
+  const windowWidth = useWindowWidth()
+  const chartHeight = windowWidth < 640 ? 260 : 360
+  const yAxisWidth  = windowWidth < 640 ? 50  : 70
+
   const histData = history.map((h) => ({
     date:  format(new Date(h.timestamp_utc), 'MMM dd'),
     close: parseFloat(h.close.toFixed(2)),
@@ -35,7 +40,7 @@ export default function StockChart({ history = [], predictions = [], currency = 
   const combined = [...histData, ...predData]
 
   return (
-    <ResponsiveContainer width="100%" height={360}>
+    <ResponsiveContainer width="100%" height={chartHeight}>
       <ComposedChart data={combined} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
         <XAxis
@@ -50,7 +55,7 @@ export default function StockChart({ history = [], predictions = [], currency = 
           tickLine={false}
           axisLine={false}
           tickFormatter={(v) => `${currency}${v}`}
-          width={70}
+          width={yAxisWidth}
         />
         <Tooltip content={<CustomTooltip currency={currency} />} />
         <Legend

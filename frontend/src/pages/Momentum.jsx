@@ -190,7 +190,7 @@ export default function Momentum() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Momentum / RSI Heatmap</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100">Momentum / RSI Heatmap</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">RSI and momentum analysis across your watchlist</p>
         </div>
         <button
@@ -353,7 +353,8 @@ export default function Momentum() {
 
       {/* ── Detailed Table ────────────────────────────────────────────────── */}
       <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto -mx-px">
+          <div className="min-w-[640px]">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700">
@@ -387,6 +388,7 @@ export default function Momentum() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
     </div>
@@ -424,7 +426,7 @@ function MomentumRow({ stock }) {
           {sym}
         </Link>
       </td>
-      <td className="px-3 py-3 text-slate-700 dark:text-slate-300 max-w-[160px] truncate" title={stock.name}>
+      <td className="px-3 py-3 text-slate-700 dark:text-slate-300 max-w-[100px] sm:max-w-[160px] truncate" title={stock.name}>
         {stock.name || '-'}
       </td>
       <td className="px-3 py-3 text-right font-medium text-slate-800 dark:text-slate-200 whitespace-nowrap">

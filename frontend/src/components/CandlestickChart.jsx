@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useWindowWidth } from '../hooks/useWindowWidth'
 import { createChart, ColorType, CrosshairMode, LineStyle, CandlestickSeries, LineSeries, HistogramSeries } from 'lightweight-charts'
 
 /* ── Calculation helpers ──────────────────────────────────────────── */
@@ -124,8 +125,9 @@ export default function CandlestickChart({ history = [] }) {
   const [bbPeriod, setBbPeriod] = useState(20)
   const [rsiPeriod, setRsiPeriod] = useState(14)
 
-  const getChartHeight = useCallback(() => (typeof window !== 'undefined' && window.innerWidth < 640 ? 300 : 450), [])
-  const getPanelHeight = useCallback(() => (typeof window !== 'undefined' && window.innerWidth < 640 ? 100 : 120), [])
+  const windowWidth = useWindowWidth()
+  const chartHeight = windowWidth < 640 ? 280 : windowWidth < 1024 ? 360 : 450
+  const panelHeight = windowWidth < 640 ? 90  : windowWidth < 1024 ? 105 : 120
 
   const ohlcData = history
     .map(h => {
@@ -164,7 +166,6 @@ export default function CandlestickChart({ history = [] }) {
   useEffect(() => {
     if (!mainContainerRef.current || ohlcData.length === 0) return
 
-    const chartHeight = getChartHeight()
     const chart = createChart(mainContainerRef.current, {
       width: mainContainerRef.current.clientWidth,
       ...baseChartOpts(chartHeight),
@@ -273,7 +274,6 @@ export default function CandlestickChart({ history = [] }) {
 
     if (!overlays.rsi || !rsiContainerRef.current || ohlcData.length < 2) return
 
-    const panelHeight = getPanelHeight()
     const width = mainContainerRef.current?.clientWidth || rsiContainerRef.current.clientWidth
 
     const rsiChart = createChart(rsiContainerRef.current, {
@@ -348,7 +348,6 @@ export default function CandlestickChart({ history = [] }) {
 
     if (!overlays.macd || !macdContainerRef.current || ohlcData.length < 30) return
 
-    const panelHeight = getPanelHeight()
     const width = mainContainerRef.current?.clientWidth || macdContainerRef.current.clientWidth
 
     const macdChart = createChart(macdContainerRef.current, {
@@ -466,7 +465,7 @@ export default function CandlestickChart({ history = [] }) {
 
   /* ── Render ───────────────────────────────────────────────────── */
   if (ohlcData.length === 0) {
-    return <div className="h-[450px] flex items-center justify-center text-sm text-slate-400">No data available</div>
+    return <div className="h-[280px] sm:h-[360px] lg:h-[450px] flex items-center justify-center text-sm text-slate-400">No data available</div>
   }
 
   const btnClass = (active) =>

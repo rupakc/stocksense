@@ -221,7 +221,8 @@ function PriceComparisonChart({ stocks }) {
 
   const handleMouseMove = (e) => {
     const rect = svgRef.current.getBoundingClientRect()
-    const mx = e.clientX - rect.left
+    const scaleX = rect.width / width
+    const mx = (e.clientX - rect.left) / scaleX
     const idx = Math.round(((mx - pad.left) / cw) * (allDates.length - 1))
     if (idx < 0 || idx >= allDates.length) { setTooltip(null); return }
     const date = allDates[idx]
@@ -232,11 +233,12 @@ function PriceComparisonChart({ stocks }) {
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
       <h3 className="text-sm font-semibold text-slate-800 mb-4">Price Performance (1Y, % Change)</h3>
-      <div className="overflow-x-auto">
+      <div>
         <svg
           ref={svgRef}
           viewBox={`0 0 ${width} ${height}`}
-          className="w-full max-w-[700px]"
+          width="100%"
+          className="max-w-[700px]"
           onMouseMove={handleMouseMove}
           onMouseLeave={() => setTooltip(null)}
         >
@@ -337,8 +339,8 @@ function RadarChart({ stocks }) {
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
       <h3 className="text-sm font-semibold text-slate-800 mb-4">Key Metrics Comparison</h3>
-      <div className="flex justify-center overflow-x-auto">
-        <svg viewBox="0 0 360 360" className="w-full max-w-[360px]">
+      <div className="flex justify-center">
+        <svg viewBox="0 0 360 360" width="100%" className="max-w-[360px]">
           {/* Grid levels */}
           {Array.from({ length: levels }, (_, li) => {
             const pct = ((li + 1) / levels) * 100

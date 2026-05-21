@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useWindowWidth } from '../hooks/useWindowWidth'
 import { useParams, Link } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { getQuote, getHistory, getPrediction, getSentiment, getOptionsChain, getIndices } from '../services/api'
@@ -159,6 +160,7 @@ function OptionsChainSection({ options }) {
 }
 
 export default function StockDetail() {
+  const windowWidth = useWindowWidth()
   const { symbol } = useParams()
   const [chartType, setChartType] = useState('candlestick')
   const [period, setPeriod] = useState('1y')
@@ -333,11 +335,11 @@ export default function StockDetail() {
             }
           })
           return (
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={windowWidth < 640 ? 220 : 300}>
               <ComposedChart data={combined} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                 <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={{ stroke: '#e2e8f0' }} />
-                <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={v => `${v}%`} width={50} />
+                <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={v => `${v}%`} width={windowWidth < 640 ? 38 : 50} />
                 <Tooltip content={({ active, payload, label }) => {
                   if (!active || !payload?.length) return null
                   return (

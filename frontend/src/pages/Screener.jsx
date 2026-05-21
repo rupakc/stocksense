@@ -139,6 +139,68 @@ function formatPrice(val, sym) {
   return `${c}${Number(val).toLocaleString(undefined, { maximumFractionDigits: 2 })}`
 }
 
+// ── Mobile card view ────────────────────────────────────────────────────────
+function MobileStockCard({ stock }) {
+  const sym = stock.symbol.replace(/\.(NS|BO)$/, '')
+  const chgPositive = stock.change_pct > 0
+  const chgNegative = stock.change_pct < 0
+  return (
+    <div className="px-4 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <Link
+            to={`/stock/${sym}`}
+            className="font-semibold text-sm text-indigo-600 hover:text-indigo-800"
+          >
+            {sym}
+          </Link>
+          <p className="text-xs text-slate-500 truncate mt-0.5 max-w-[180px]">{stock.name}</p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-sm font-semibold text-slate-800">{formatPrice(stock.price, stock.symbol)}</p>
+          <p className={clsx(
+            'text-xs font-medium',
+            chgPositive && 'text-emerald-600',
+            chgNegative && 'text-rose-600',
+            !chgPositive && !chgNegative && 'text-slate-500',
+          )}>
+            {stock.change_pct !== null ? `${stock.change_pct > 0 ? '+' : ''}${stock.change_pct.toFixed(2)}%` : '-'}
+          </p>
+        </div>
+      </div>
+      <div className="flex items-center flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-slate-500">
+        <span>MCap: <span className="font-medium text-slate-700">{formatMarketCap(stock.market_cap, stock.symbol)}</span></span>
+        <span>P/E: <span className="font-medium text-slate-700">{formatNum(stock.pe_ratio)}</span></span>
+        <span>ROE: <span className="font-medium text-slate-700">{stock.roe !== null ? formatPct(stock.roe) : '-'}</span></span>
+        {stock.sector && (
+          <span className="ml-auto text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">{stock.sector}</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function MobileSkeletonCard() {
+  return (
+    <div className="px-4 py-3 animate-pulse">
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-2 flex-1">
+          <div className="h-4 bg-slate-200 rounded w-20" />
+          <div className="h-3 bg-slate-200 rounded w-36" />
+        </div>
+        <div className="space-y-2 items-end flex flex-col shrink-0">
+          <div className="h-4 bg-slate-200 rounded w-16" />
+          <div className="h-3 bg-slate-200 rounded w-12" />
+        </div>
+      </div>
+      <div className="flex gap-4 mt-3">
+        <div className="h-3 bg-slate-200 rounded w-24" />
+        <div className="h-3 bg-slate-200 rounded w-16" />
+      </div>
+    </div>
+  )
+}
+
 // ── Skeleton row ────────────────────────────────────────────────────────────
 function SkeletonRow() {
   return (
@@ -262,7 +324,7 @@ export default function Screener() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Stock Screener</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Stock Screener</h1>
           <p className="text-sm text-slate-500 mt-1">Screen NSE & NASDAQ stocks by fundamental criteria</p>
         </div>
         <div className="flex items-center gap-2">
@@ -324,7 +386,7 @@ export default function Screener() {
 
         {showFilters && (
           <div className="mt-3 p-4 bg-white border border-slate-200 rounded-xl shadow-sm">
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* Sector */}
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Sector</label>
@@ -476,8 +538,23 @@ export default function Screener() {
         </div>
       )}
 
-      {/* Results table */}
-      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+      {/* Mobile card view — visible on phones, hidden on tablet+ */}
+      <div className="block md:hidden bg-white border border-slate-200 rounded-xl shadow-sm divide-y divide-slate-100">
+        {isLoading ? (
+          Array.from({ length: 5 }).map((_, i) => <MobileSkeletonCard key={i} />)
+        ) : sortedStocks.length === 0 ? (
+          <div className="px-4 py-12 text-center text-slate-400">
+            <Search className="w-8 h-8 mx-auto mb-2 opacity-40" />
+            <p className="text-sm font-medium">No stocks match your criteria</p>
+            <p className="text-xs mt-1">Try adjusting your filters or using a different preset</p>
+          </div>
+        ) : (
+          sortedStocks.map(stock => <MobileStockCard key={stock.symbol} stock={stock} />)
+        )}
+      </div>
+
+      {/* Desktop table — hidden on phones, visible on tablet+ */}
+      <div className="hidden md:block bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>

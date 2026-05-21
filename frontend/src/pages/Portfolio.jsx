@@ -192,7 +192,7 @@ function AdvisorTab() {
 
       {data && data.length > 0 && (
         <>
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {Object.entries(counts).map(([sig, n]) => (
               <SummaryTile key={sig} signal={sig} count={n} />
             ))}
@@ -210,7 +210,7 @@ export default function Portfolio() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Portfolio</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Portfolio</h1>
         <p className="text-sm text-slate-500 mt-1">AI-powered advisory signals for your watchlist</p>
       </div>
       <AdvisorTab />

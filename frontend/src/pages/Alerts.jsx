@@ -165,7 +165,7 @@ function CreateAlertForm({ onClose, toast, alerts }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
           <label className="text-[10px] font-semibold text-slate-500 uppercase">Symbol</label>
           <select value={symbol} onChange={e => setSymbol(e.target.value)}
@@ -278,9 +278,9 @@ export default function Alerts() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Price Alerts</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Price Alerts</h1>
           <p className="text-sm text-slate-500 mt-1">Get notified when stocks hit your target conditions</p>
         </div>
         <div className="flex gap-2">
@@ -302,7 +302,7 @@ export default function Alerts() {
       </div>
 
       {/* Alert Statistics */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-slate-800 rounded-lg p-3 text-center border border-slate-200">
           <div className="text-2xl font-bold text-blue-600">{activeAlerts.length}</div>
           <div className="text-xs text-slate-500">Active</div>

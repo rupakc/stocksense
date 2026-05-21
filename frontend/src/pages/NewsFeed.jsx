@@ -368,7 +368,7 @@ export default function NewsFeed() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">News</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900">News</h1>
         <p className="text-sm text-slate-500 mt-1">
           Market-wide RSS feeds &amp; real-time internet search for company-specific news
         </p>
@@ -513,7 +513,7 @@ export default function NewsFeed() {
               </div>
 
               {/* Source legend */}
-              <div className="shrink-0 space-y-1.5">
+              <div className="hidden sm:block shrink-0 space-y-1.5">
                 <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Sources</p>
                 {Object.entries(SOURCE_TYPE_META).filter(([k]) => k !== 'rss').map(([k, v]) => (
                   <div key={k} className="flex items-center gap-2">

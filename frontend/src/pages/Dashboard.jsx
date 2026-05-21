@@ -185,7 +185,7 @@ function WatchlistRow({ symbol, preloadedQuote }) {
         <p className="text-sm font-semibold text-slate-800 group-hover:text-indigo-600 transition-colors">
           {symbol.replace(/\.(NS|BO)$/, '')}
         </p>
-        <p className="text-xs text-slate-400 truncate max-w-[180px]">{quote?.name ?? '—'}</p>
+        <p className="text-xs text-slate-400 truncate max-w-[120px] sm:max-w-[180px]">{quote?.name ?? '—'}</p>
       </div>
       <div className="flex items-center gap-3 shrink-0">
         {quote ? (
@@ -435,7 +435,7 @@ export default function Dashboard() {
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Market Overview</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">Market Overview</h1>
           <div className="flex items-center gap-3 mt-1">
             <MarketStatus exchangeId={selectedExchange === 'ALL' ? null : selectedExchange} />
             <LastUpdated dataUpdatedAt={dataUpdatedAt} />
@@ -444,7 +444,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── Index cards ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {indices
           ? Object.entries(indices).map(([name, data]) => <IndexCard key={name} name={name} data={data} />)
           : Array.from({ length: 4 }).map((_, i) => (

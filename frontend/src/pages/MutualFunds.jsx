@@ -99,7 +99,7 @@ function OverlapRow({ scheme }) {
         </td>
         <td className="text-right px-5 py-3">
           <div className="flex items-center justify-end gap-2">
-            <div className="w-20 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+            <div className="w-full max-w-[80px] h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
               <div
                 className={`h-full rounded-full ${overlapPct >= 40 ? 'bg-rose-500' : overlapPct >= 20 ? 'bg-amber-500' : 'bg-emerald-500'}`}
                 style={{ width: `${Math.min(overlapPct, 100)}%` }}
@@ -240,7 +240,7 @@ export default function MutualFunds() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Mutual Fund Overlap</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100">Mutual Fund Overlap</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">See how your portfolio stocks overlap with popular mutual fund schemes</p>
       </div>
 

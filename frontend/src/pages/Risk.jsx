@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useWindowWidth } from '../hooks/useWindowWidth'
 import { useQuery } from '@tanstack/react-query'
 import { getRiskAnalysis } from '../services/api'
 import { useExchangeStore } from '../store/exchangeStore'
@@ -186,6 +187,7 @@ function PortfolioMetricsCard({ riskMetrics, indianCtx }) {
 // ─── Stress Testing ──────────────────────────────────────────────────────────
 
 function StressTestSection({ riskMetrics, indianCtx, currency, locale }) {
+  const windowWidth = useWindowWidth()
   const portfolioValue = 100_000
 
   const metrics = Object.entries(riskMetrics)
@@ -228,13 +230,13 @@ function StressTestSection({ riskMetrics, indianCtx, currency, locale }) {
       </div>
 
       {/* Bar chart */}
-      <div className="h-56 mb-5">
+      <div className="h-40 sm:h-56 mb-5">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData} layout="vertical" margin={{ left: 0, right: 20, top: 5, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
             <XAxis type="number" tickFormatter={v => `${v >= 0 ? '+' : ''}${currency}${Math.abs(v / 1000).toFixed(0)}K`}
               tick={{ fontSize: 10, fill: '#64748b' }} />
-            <YAxis type="category" dataKey="name" width={100}
+            <YAxis type="category" dataKey="name" width={windowWidth < 640 ? 55 : 100}
               tick={{ fontSize: 10, fill: '#334155' }} />
             <ReferenceLine x={0} stroke="#94a3b8" />
             <Tooltip
@@ -387,7 +389,7 @@ function DrawdownSection({ riskMetrics }) {
       </div>
 
       {/* Area chart */}
-      <div className="h-48">
+      <div className="h-36 sm:h-48">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={drawdownData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
             <defs>
@@ -736,7 +738,7 @@ export default function Risk() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Risk Dashboard</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Risk Dashboard</h1>
         <p className="text-sm text-slate-500 mt-1">Portfolio risk metrics, correlations, stress tests, and sector exposure (6-month window)</p>
       </div>
 

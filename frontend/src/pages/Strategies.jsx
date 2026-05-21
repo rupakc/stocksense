@@ -223,7 +223,7 @@ function SignalCard({ signal: s, onBacktest, onCompare }) {
 
         {/* Entry / SL / Target */}
         {(s.entry_price || s.stop_loss || s.target_price) && (
-          <div className="grid grid-cols-3 gap-1.5 mt-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 mt-3">
             {s.entry_price && (
               <div className="text-center bg-slate-50 rounded-lg p-2 border border-slate-100">
                 <p className="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">Entry</p>
@@ -723,7 +723,7 @@ export default function Strategies() {
       {/* Page header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Trading Strategies</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Trading Strategies</h1>
           <p className="text-sm text-slate-500 mt-1">
             Select a strategy to generate buy/sell/hold signals for your watchlist
           </p>
