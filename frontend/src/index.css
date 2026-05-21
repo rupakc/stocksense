@@ -52,8 +52,6 @@ button, a { transition: color 0.15s, background-color 0.15s, border-color 0.15s,
 /* Prevent iOS Safari auto-zoom when focusing form inputs (triggers at < 16px) */
 input, select, textarea { font-size: max(16px, 1em); }
 
-/* Enforce minimum 44px touch targets on interactive elements */
-button, [role="button"] { min-height: 44px; }
 
 /* ── Dark mode overrides ────────────────────────────────────────────────────── */
 .dark body {

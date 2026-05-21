@@ -87,14 +87,14 @@ export default function SymbolSearch({ onAdd, isAdding }) {
     : 'bg-slate-100 text-slate-600 border-slate-200'
 
   return (
-    <div className="flex gap-2 items-start">
-      {/* Exchange toggle */}
-      <div className="flex rounded-xl border border-slate-200 shadow-sm overflow-hidden shrink-0">
+    <div className="flex flex-col gap-2">
+      {/* Exchange toggle — full width on mobile, auto-width on sm+ */}
+      <div className="flex rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         {EXCHANGES.map(ex => (
           <button
             key={ex}
             onClick={() => { setExchange(ex); setResults([]); setSelected(null) }}
-            className={`px-3 py-2.5 text-xs font-semibold transition-colors ${
+            className={`flex-1 px-3 py-2.5 text-xs font-semibold transition-colors ${
               exchange === ex
                 ? 'bg-indigo-600 text-white'
                 : 'bg-white text-slate-500 hover:bg-slate-50'
@@ -105,76 +105,79 @@ export default function SymbolSearch({ onAdd, isAdding }) {
         ))}
       </div>
 
-      <div className="relative flex-1">
-        <div className={`flex items-center gap-2 bg-white border rounded-xl px-3 py-2.5 transition-all ${
-          open
-            ? 'border-indigo-400 shadow-[0_0_0_3px_rgba(99,102,241,0.12)]'
-            : 'border-slate-200 hover:border-slate-300 shadow-sm'
-        }`}>
-          {loading
-            ? <Loader2 className="w-4 h-4 text-slate-400 shrink-0 animate-spin" />
-            : <Search className="w-4 h-4 text-slate-400 shrink-0" />
-          }
-          <input
-            ref={inputRef}
-            type="text"
-            className="flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 min-w-0"
-            placeholder={exchange === 'NASDAQ' ? 'Search NASDAQ symbol or company…' : 'Search NSE symbol or company…'}
-            value={query}
-            onChange={e => { setSelected(null); setQuery(e.target.value.toUpperCase()) }}
-            onFocus={() => results.length > 0 && setOpen(true)}
-            onKeyDown={handleKeyDown}
-            autoComplete="off"
-          />
-          {query && (
-            <button onClick={clear} className="text-slate-400 hover:text-slate-600 shrink-0">
-              <X className="w-3.5 h-3.5" />
-            </button>
+      {/* Search input + Add button always on the same row */}
+      <div className="flex gap-2 items-start">
+        <div className="relative flex-1 min-w-0">
+          <div className={`flex items-center gap-2 bg-white border rounded-xl px-3 py-2.5 transition-all ${
+            open
+              ? 'border-indigo-400 shadow-[0_0_0_3px_rgba(99,102,241,0.12)]'
+              : 'border-slate-200 hover:border-slate-300 shadow-sm'
+          }`}>
+            {loading
+              ? <Loader2 className="w-4 h-4 text-slate-400 shrink-0 animate-spin" />
+              : <Search className="w-4 h-4 text-slate-400 shrink-0" />
+            }
+            <input
+              ref={inputRef}
+              type="text"
+              className="flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 min-w-0"
+              placeholder={exchange === 'NASDAQ' ? 'Search symbol or company…' : 'Search symbol or company…'}
+              value={query}
+              onChange={e => { setSelected(null); setQuery(e.target.value.toUpperCase()) }}
+              onFocus={() => results.length > 0 && setOpen(true)}
+              onKeyDown={handleKeyDown}
+              autoComplete="off"
+            />
+            {query && (
+              <button onClick={clear} className="text-slate-400 hover:text-slate-600 shrink-0">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {open && (
+            <div
+              ref={dropdownRef}
+              className="absolute z-50 left-0 right-0 top-[calc(100%+6px)] bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden"
+            >
+              <ul className="max-h-64 overflow-y-auto py-1">
+                {results.map((item, idx) => (
+                  <li key={item.symbol}>
+                    <button
+                      className={`w-full text-left px-4 py-2.5 flex items-center justify-between gap-3 transition-colors ${
+                        idx === activeIdx ? 'bg-indigo-50' : 'hover:bg-slate-50'
+                      }`}
+                      onMouseDown={e => { e.preventDefault(); choose(item) }}
+                      onMouseEnter={() => setActiveIdx(idx)}
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-900">{item.symbol}</p>
+                        <p className="text-xs text-slate-400 truncate">{item.name}</p>
+                      </div>
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md border shrink-0 ${badgeColor}`}>
+                        {exchange}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {selected && (
+            <p className="mt-1.5 text-xs text-slate-500 px-1">{selected.name}</p>
           )}
         </div>
 
-        {open && (
-          <div
-            ref={dropdownRef}
-            className="absolute z-50 left-0 right-0 top-[calc(100%+6px)] bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden"
-          >
-            <ul className="max-h-64 overflow-y-auto py-1">
-              {results.map((item, idx) => (
-                <li key={item.symbol}>
-                  <button
-                    className={`w-full text-left px-4 py-2.5 flex items-center justify-between gap-3 transition-colors ${
-                      idx === activeIdx ? 'bg-indigo-50' : 'hover:bg-slate-50'
-                    }`}
-                    onMouseDown={e => { e.preventDefault(); choose(item) }}
-                    onMouseEnter={() => setActiveIdx(idx)}
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-900">{item.symbol}</p>
-                      <p className="text-xs text-slate-400 truncate">{item.name}</p>
-                    </div>
-                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md border shrink-0 ${badgeColor}`}>
-                      {exchange}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {selected && (
-          <p className="mt-1.5 text-xs text-slate-500 px-1">{selected.name}</p>
-        )}
+        <button
+          onClick={handleAdd}
+          disabled={isAdding || !query.trim()}
+          className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-sm disabled:opacity-40 shrink-0"
+        >
+          {isAdding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+          Add
+        </button>
       </div>
-
-      <button
-        onClick={handleAdd}
-        disabled={isAdding || !query.trim()}
-        className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-sm disabled:opacity-40 shrink-0"
-      >
-        {isAdding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-        Add
-      </button>
     </div>
   )
 }
